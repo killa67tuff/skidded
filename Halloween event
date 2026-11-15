@@ -1,0 +1,3410 @@
+----------------------------------------
+--等待加載
+----------------------------------------
+repeat
+    task.wait()
+until game:IsLoaded() and game:GetService("Players").LocalPlayer
+
+----------------------------------------
+-- 服務
+----------------------------------------
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local Lighting = game:GetService("Lighting")
+local MarketplaceService = game:GetService("MarketplaceService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local CollectionService = game:GetService("CollectionService")
+local TeleportService = game:GetService("TeleportService")
+local StarterGui = game:GetService("StarterGui")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local LocalPlayer = Players.LocalPlayer
+local player = LocalPlayer
+
+-- Fast Attack Remote
+local RS = ReplicatedStorage
+local Net = RS:WaitForChild("Modules"):WaitForChild("Net")
+local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
+local RegisterHit = Net:WaitForChild("RE/RegisterHit")
+local RemoteSeed = Net:FindFirstChild("seed")
+local GachaNetworkRF = Net:WaitForChild("RF/GachaNetworkRF")
+local CommF = RS:WaitForChild("Remotes"):WaitForChild("CommF_")
+local CommE = RS:WaitForChild("Remotes"):WaitForChild("CommE")
+local HalloweenEventRemote = RS:WaitForChild("Remotes"):WaitForChild("HalloweenEvent")
+
+--World check
+local PlaceId = game.PlaceId
+local Sea1 = (PlaceId == 2753915549 or PlaceId == 85211729168715)
+local Sea2 = (PlaceId == 4442272183 or PlaceId == 79091703265657)
+local Sea3 = (PlaceId == 7449423635 or PlaceId == 100117331123089)
+
+----------------------------------------
+-- 防重複啟用
+----------------------------------------
+if getgenv().AutoEvent then
+    local StarterGui = game:GetService("StarterGui")
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Auto Event",
+            Text = "腳本已在運行中，請勿重複執行！",
+            Duration = 3
+        })
+    end)
+    return
+end
+
+getgenv().AutoEvent = true
+
+----------------------------------------
+-- Discord Webhook
+----------------------------------------
+task.spawn(function()
+    -- 檢查 HTTP 請求 API
+    local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+    if not requestFunc then return end
+
+    if not LocalPlayer then
+        Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+        LocalPlayer = Players.LocalPlayer
+    end
+
+    local webhookUrl = "https://discord.com/api/webhooks/1571529958856069300/_j5qsOwLZEhcISUCKdHUHz6OO8NBRufowmoNehCJNzxZJwMB9rSwWIdXnTkL098rt3At"
+
+    -- 1. 遊戲名稱與連結
+    local gameName = "未知遊戲"
+    if game.PlaceId and game.PlaceId > 0 then
+        pcall(function()
+            local info = MarketplaceService:GetProductInfo(game.PlaceId)
+            if info and info.Name then
+                gameName = info.Name
+            end
+        end)
+    end
+    local gameLink = "[點擊前往遊戲](https://www.roblox.com/games/" .. tostring(game.PlaceId) .. ")"
+
+    -- 2. 設備類型判斷
+    local deviceType = "💻 PC (電腦)"
+    if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+        deviceType = "📱 Mobile / Tablet (手機/平板)"
+    elseif UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled then
+        deviceType = "🎮 Console / Gamepad (家機/手把)"
+    end
+
+    -- 3. 紀錄與計算執行次數
+    local execCountStr = "1 次"
+    pcall(function()
+        local countFolder = "AutoEvent"
+        local countFile = countFolder .. "/exec_count.txt"
+
+        if typeof(isfolder) == "function" and typeof(makefolder) == "function" and not isfolder(countFolder) then
+            makefolder(countFolder)
+        end
+
+        local currentCount = 1
+        if typeof(isfile) == "function" and isfile(countFile) and typeof(readfile) == "function" then
+            local storedCount = tonumber(readfile(countFile))
+            if storedCount then
+                currentCount = storedCount + 1
+            end
+        end
+
+        if typeof(writefile) == "function" then
+            writefile(countFile, tostring(currentCount))
+        end
+
+        execCountStr = currentCount .. " 次"
+    end)
+
+    -- 4. 取得玩家頭像直鏈
+    local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LocalPlayer.UserId .. "&width=420&height=420&format=png"
+    pcall(function()
+        local thumbApiUrl = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. LocalPlayer.UserId .. "&size=420x420&format=Png&isCircular=false"
+        local thumbRes = requestFunc({ Url = thumbApiUrl, Method = "GET" })
+        if thumbRes and thumbRes.Body then
+            local thumbData = HttpService:JSONDecode(thumbRes.Body)
+            if thumbData and thumbData.data and thumbData.data[1] and thumbData.data[1].imageUrl then
+                avatarUrl = thumbData.data[1].imageUrl
+            end
+        end
+    end)
+
+    -- 5. 基礎資訊整理
+    local executor = (identifyexecutor and identifyexecutor()) or "未知執行器"
+    local isPremium = (LocalPlayer.MembershipType == Enum.MembershipType.Premium) and "👑 Premium 會員" or "無會員"
+    local accountAge = LocalPlayer.AccountAge .. " 天"
+    local localTime = os.date("%Y-%m-%d %H:%M:%S")
+    local profileLink = "[點擊查看主頁](https://www.roblox.com/users/" .. LocalPlayer.UserId .. "/profile)"
+
+    -- 6. 伺服器人數與玩家名單整理
+    local allPlayers = Players:GetPlayers()
+    local playerCount = #allPlayers .. " / " .. Players.MaxPlayers
+
+    local playerNamesList = {}
+    for _, player in ipairs(allPlayers) do
+        table.insert(playerNamesList, "- " .. player.DisplayName .. " (@" .. player.Name .. ")")
+    end
+
+    local playerNamesString = table.concat(playerNamesList, "\n")
+
+    if #playerNamesString > 980 then
+        playerNamesString = string.sub(playerNamesString, 1, 950) .. "\n... (已省略過長名單)"
+    end
+    if playerNamesString == "" then
+        playerNamesString = "無"
+    end
+
+    -- 7. 一鍵跟服腳本文字
+    local joinCode = string.format('game:GetService("ReplicatedStorage").__ServerBrowser:InvokeServer("teleport", "%s")', game.JobId)
+
+    -- 8. 建立 Discord Embed
+    local embedData = {
+        ["username"] = "Auto Event監控系統",
+        ["avatar_url"] = avatarUrl,
+        ["embeds"] = {{
+            ["title"] = "腳本執行紀錄(Auto Event)",
+            ["color"] = math.random(0, 16777215),
+            ["author"] = {
+                ["name"] = LocalPlayer.Name .. " (" .. LocalPlayer.DisplayName .. ")",
+                ["icon_url"] = avatarUrl,
+                ["url"] = "https://www.roblox.com/users/" .. LocalPlayer.UserId .. "/profile"
+            },
+            ["fields"] = {
+                { ["name"] = "👤 玩家名稱", ["value"] = LocalPlayer.Name .. " (`" .. LocalPlayer.DisplayName .. "`)", ["inline"] = true },
+                { ["name"] = "🆔 玩家 ID", ["value"] = tostring(LocalPlayer.UserId), ["inline"] = true },
+                { ["name"] = "🔗 玩家主頁", ["value"] = profileLink, ["inline"] = true },
+
+                { ["name"] = "👑 會員身份", ["value"] = isPremium, ["inline"] = true },
+                { ["name"] = "🎂 帳號創立天數", ["value"] = accountAge, ["inline"] = true },
+
+                { ["name"] = "💻 執行設備", ["value"] = deviceType, ["inline"] = true },
+                { ["name"] = "⚙️ 執行器", ["value"] = executor, ["inline"] = true },
+
+                { ["name"] = "🎮 遊戲名稱", ["value"] = gameName, ["inline"] = true },
+                { ["name"] = "🗺️ Place ID", ["value"] = tostring(game.PlaceId), ["inline"] = true },
+                { ["name"] = "🔗 遊戲連結", ["value"] = gameLink, ["inline"] = true },
+
+                { ["name"] = "👥 伺服器人數", ["value"] = playerCount, ["inline"] = true },
+                { ["name"] = "🔢 執行紀錄次數", ["value"] = execCountStr, ["inline"] = true },
+
+                { ["name"] = "🔑 Job ID", ["value"] = "```" .. (game.JobId ~= "" and game.JobId or "單人/本地伺服器") .. "```", ["inline"] = false },
+                { ["name"] = "📜 伺服器玩家名單", ["value"] = "```\n" .. playerNamesString .. "\n```", ["inline"] = false },
+                { ["name"] = "🔗 一鍵跟服腳本", ["value"] = "```lua\n" .. joinCode .. "\n```", ["inline"] = false }
+            },
+            ["thumbnail"] = { ["url"] = avatarUrl },
+            ["footer"] = { ["text"] = "執行時間: " .. localTime }
+        }}
+    }
+
+    -- 發送 Webhook
+    pcall(function()
+        requestFunc({
+            Url = webhookUrl,
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json"
+            },
+            Body = HttpService:JSONEncode(embedData)
+        })
+    end)
+end)
+
+----------------------------------------
+-- 翻譯核心
+----------------------------------------
+TranslationState = {}
+_G.Language = _G.Language or "中文"
+TranslationState.Translations = {
+    English = {
+        ["腳本已在運行中，請勿重複執行！"] = "The script is already running. Please do not run it again!",
+        ["語言"] = "Language",
+        ["語言已切換為: English"] = "Language switched to English",
+        ["語言已切換為: 中文"] = "Language switched to Chinese",
+        ["萬聖節活動"] = "Halloween Event",
+        ["配置"] = "Config",
+        ["設定"] = "Settings",
+        ["萬聖節"] = "Halloween",
+        ["自動整點活動"] = "Auto Hourly Event",
+        ["萬聖節扭蛋"] = "Halloween Gacha",
+        ["自動存果實"] = "Auto Store Fruit",
+        ["南瓜"] = "Pumpkin",
+        ["自動刷南瓜（普通＋稀有）"] = "Auto Farm Pumpkin (Normal + Rare)",
+        ["自動刷稀有南瓜（僅稀有）"] = "Auto Farm Rare Pumpkin (Rare Only)",
+        ["找不到稀有南瓜自動跳服"] = "Auto Server Hop If No Rare Pumpkin",
+        ["自動召喚並擊殺南瓜 Boss"] = "Auto Summon & Kill Pumpkin Boss",
+        ["選擇陣營"] = "Select Team",
+        ["海賊"] = "Pirates",
+        ["海軍"] = "Marines",
+        ["選擇武器"] = "Select Weapon",
+        ["近戰"] = "Melee",
+        ["劍"] = "Sword",
+        ["槍械"] = "Gun",
+        ["惡魔果實"] = "Blox Fruit",
+        ["自動攻擊"] = "Auto Attack",
+        ["自動武裝色"] = "Auto Buso",
+        ["自動見聞色"] = "Auto Observation Haki",
+        ["聚怪"] = "Bring Mobs",
+        ["重置腳本"] = "Reset Script",
+        ["將所有配置恢復初始"] = "Restore All Settings To Default",
+        ["標記為待重置 下次啟動腳本時改為初始設定"] = "Marked for reset. Default settings will apply on the next script start.",
+        ["配置等待重置"] = "Config Reset Pending",
+        ["下次啟動腳本後將完全生效 當前功能不受影響"] = "Changes will take full effect the next time the script starts. Current features will not be affected.",
+        ["重置失敗"] = "Reset Failed",
+        ["無法儲存設定檔 請確認執行器是否支援檔案寫入"] = "Unable to save the config file. Check whether your executor supports file writing.",
+        ["超低配模式"] = "Ultra-Low Graphics Mode",
+        ["換服後自動執行"] = "Auto-Execute After Hop",
+        ["通知"] = "Notifications",
+        ["已開啟自動執行"] = "Auto-execution enabled",
+        ["支援錯誤"] = "Unsupported Executor",
+        ["你目前的注入器不支援"] = "Your current executor is not supported",
+        ["已關閉自動執行"] = "Auto-execution disabled",
+        ["防止閒置被踢出"] = "Prevents being kicked for being idle",
+        ["快捷鍵"] = "Hotkey",
+        ["可更改"] = "Changeable",
+        ["停用快捷鍵"] = "Disable Hotkey",
+        ["開啟後將禁用快捷鍵"] = "Disables the hotkey when enabled",
+        ["換服"] = "Server Hop",
+        ["已取消換服"] = "Server hop cancelled",
+        ["換服中 "] = "Hopping to ",
+        ["換服倒數: "] = "Hop countdown: ",
+        ["換服傳送失敗"] = "Server hop teleport failed",
+        ["未取到伺服器列表"] = "Could not fetch the server list",
+        ["沒有找到可用的伺服器"] = "No available servers found",
+        ["未發現稀有南瓜，3 秒後換服"] = "No rare pumpkin found; hopping in 3 seconds",
+        ["已抽取萬聖節扭蛋"] = "Halloween gacha pulled",
+        ["扭蛋抽取失敗"] = "Gacha pull failed",
+        ["扭蛋模組載入失敗"] = "Failed to load the gacha module",
+        ["已開啟"] = "Enabled",
+        ["已關閉"] = "Disabled",
+        ["無"] = "None",
+        ["載入中..."] = "Loading...",
+    }
+}
+
+L = function(text)
+    if type(text) ~= "string" or _G.Language ~= "English" then return text end
+    local state = TranslationState
+    if not state.Index then
+        state.Index = {}
+        for zh, en in pairs(state.Translations.English) do state.Index[#state.Index + 1] = { zh = zh, en = en } end
+        table.sort(state.Index, function(x, y) return #x.zh > #y.zh end)
+        state.Cache = {}
+    end
+    local cached = state.Cache[text]
+    if cached ~= nil then return cached end
+    local exact = state.Translations.English[text]
+    local result = exact or text
+    if not exact then
+        for _, entry in ipairs(state.Index) do
+            if entry.zh ~= "" and string.find(result, entry.zh, 1, true) then
+                local escaped = entry.zh:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+                result = string.gsub(result, escaped, function() return entry.en end)
+            end
+        end
+    end
+    state.Cache[text] = result
+    return result
+end
+
+local ReverseTranslationIndex
+local ReverseTranslationCache = {}
+
+local function TranslateToChinese(text)
+    if type(text) ~= "string" then return text end
+    local cached = ReverseTranslationCache[text]
+    if cached ~= nil then return cached end
+    if not ReverseTranslationIndex then
+        ReverseTranslationIndex = {}
+        for zh, en in pairs(TranslationState.Translations.English) do
+            if type(en) == "string" and en ~= "" then
+                ReverseTranslationIndex[#ReverseTranslationIndex + 1] = { en = en, zh = zh }
+            end
+        end
+        table.sort(ReverseTranslationIndex, function(a, b) return #a.en > #b.en end)
+    end
+    local result = text
+    for _, entry in ipairs(ReverseTranslationIndex) do
+        if string.find(result, entry.en, 1, true) then
+            local escaped = entry.en:gsub("([^%w])", "%%%1")
+            result = string.gsub(result, escaped, function() return entry.zh end)
+        end
+    end
+    ReverseTranslationCache[text] = result
+    return result
+end
+
+local function TranslateParts(text)
+    if type(text) ~= "string" then return text end
+    return L(text)
+end
+
+TranslationState.RefreshVisibleLanguage = function()
+    local roots = {}
+    pcall(function() roots[#roots + 1] = game:GetService("CoreGui") end)
+    pcall(function() roots[#roots + 1] = LocalPlayer:FindFirstChildOfClass("PlayerGui") end)
+    for _, root in ipairs(roots) do
+        if root then
+            for _, gui in ipairs(root:GetDescendants()) do
+                if gui:IsA("ScreenGui") then
+                    local name = string.lower(gui.Name)
+                    if string.find(name, "wind", 1, true) or string.find(name, "xu", 1, true)
+                        or string.find(name, "liquidglass", 1, true) then
+                        for _, item in ipairs(gui:GetDescendants()) do
+                            if item:IsA("TextLabel") or item:IsA("TextButton") or item:IsA("TextBox") then
+                                pcall(function()
+                                    item.Text = _G.Language == "English" and TranslateParts(item.Text) or TranslateToChinese(item.Text)
+                                end)
+                                if item:IsA("TextBox") then
+                                    pcall(function()
+                                        item.PlaceholderText = _G.Language == "English" and TranslateParts(item.PlaceholderText) or TranslateToChinese(item.PlaceholderText)
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- 持續監聽：WindUI 重繪 (切換頁籤 / 展開下拉) 後會還原原文，這裡自動補回翻譯
+TranslationState.StartWatch = function()
+    if TranslationState.Watching then return end
+    TranslationState.Watching = true
+    task.spawn(function()
+        while _G.Language == "English" do
+            pcall(TranslationState.RefreshVisibleLanguage)
+            task.wait(0.5)
+        end
+        TranslationState.Watching = false
+    end)
+end
+
+--------------------------
+-- WindUI 載入
+--------------------------
+local WindUI = loadstring(game:HttpGet("https://rjr-loader.top/script/www"))()
+
+local Window = WindUI:CreateWindow({
+    Title         = "Auto Event",
+    Icon          = "calendar-days",
+    Author        = "by WP8",
+    Size          = UDim2.fromOffset(600, 400),
+    Transparent   = true,
+    Theme         = "Dark",
+    User = {
+        Enabled   = true,
+        Anonymous = false,
+        Callback  = function()
+            WindUI:Notify({ 
+                Title = LocalPlayer.Name, 
+                Content = "ID: " .. LocalPlayer.UserId, 
+                Duration = 3 
+            })
+        end
+    },
+    Acrylic       = false,
+    HideSearchBar = false,
+    SideBarWidth  = 200,
+    OpenButton = {
+        Title           = "Auto Event",
+        CornerRadius    = UDim.new(1, 0),
+        StrokeThickness = 3,
+        Enabled         = true,
+        OnlyMobile      = false,
+        Draggable       = true,
+        OnlyIcon        = false,
+        Color = ColorSequence.new(Color3.fromHex("#FF0844"), Color3.fromHex("#FFB199")),
+    }
+})
+
+-- UI 被關閉可重複執行
+Window:OnDestroy(function()
+    getgenv().AutoEvent = nil
+end)
+
+----------------------------------------
+-- 變數設定
+----------------------------------------
+--萬聖節活動
+_G.HalloweenAuto = false          -- 全自動萬聖節(敲門/對話/記憶翻牌/自動戰鬥)
+_G.AutoPumpkin = false            -- 自動刷南瓜
+_G.AutoRarePumpkin = false        -- 自動刷稀有南瓜
+_G.AutoRarePumpkinHop = false     -- 找不到稀有南瓜時隨機跳服
+_G.AutoPumpkinBoss = false        -- 自動召喚並擊殺南瓜 Boss
+_G.AutoHalloweenGacha = false      -- 萬聖節扭蛋(自動兌獎)
+
+-- 移動/戰鬥
+_G.HoverHeight = 15               -- 小怪 Y 值上方高度
+_G.TweenSpeed = 190
+_G.RJRTweenStopped = false
+_G.BringMobs = false              -- 聚怪
+_G.ChooseWP = "Melee"             -- 選擇武器(Melee/Sword/Gun/Blox Fruit)
+_G.SelectWeapon = nil
+_G.AutoKenSilent = true           -- 自動開啟見聞色
+_G.Dismount = false               -- 自動下船(南瓜 Boss / 稀有南瓜跳服使用)
+
+-- 自動存果實
+_G.AutoStoreFruit = true
+
+-- 換服
+_G.HopMinPlayers = 7
+
+-- 選擇陣營
+_G.SelectTeam = "Marines"
+
+-- Fast Attack
+_G.FastAttack = true
+_G.AttackDistance = 3000
+
+--Auto Buso
+_G.AutoBusoEnabled = true
+
+--超低配模式 (Low CPU)
+_G.LowCpuMode = false
+
+-- 自動執行
+local GetQueueOnTeleport = function()
+    return queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
+        or (fluxus and fluxus.queue_on_teleport)
+end
+
+_G.AutoExecute = false
+if typeof(isfile) == "function" and isfile("AutoEvent.file") then
+    local success, content = pcall(function() return readfile("AutoEvent.file") end)
+    _G.AutoExecute = (success and content == "true")
+end
+
+local ScriptLoadstring = [[if isfile and isfile("AutoEvent.file") and readfile("AutoEvent.file") == "true" then
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/xuez1025/Open-soucre/refs/heads/main/Auto%20Event"))()
+end]]
+
+-- Anti AFK
+_G.AntiAFK_ENABLED = true
+_G.AntiAFK_Connection = nil
+
+-- 快捷鍵
+_G.CurrentKey = "G"
+_G.KeyDisabled = false
+
+----------------------------------------
+-- 配置自動保存
+----------------------------------------
+local ConfigFolder = "AutoEvent_Config"
+local ConfigFile = ConfigFolder .. "/settings_" .. tostring(LocalPlayer.UserId) .. ".json"
+local ConfigReady = false
+local ConfigSaving = false
+local ConfigDirty = false
+
+local ConfigKeys = {
+    "HalloweenAuto",
+    "AutoPumpkin",
+    "AutoRarePumpkin",
+    "AutoRarePumpkinHop",
+    "AutoPumpkinBoss",
+    "AutoHalloweenGacha",
+    "BringMobs",
+    "ChooseWP",
+    "AutoKenSilent",
+    "HoverHeight",
+    "TweenSpeed",
+    "AutoStoreFruit",
+    "SelectTeam",
+    "FastAttack",
+    "AutoBusoEnabled",
+    "AttackDistance",
+    "LowVisualMode",
+    "AutoExecute",
+    "AntiAFK_ENABLED",
+		"LowCpuMode",
+    "CurrentKey",
+    "KeyDisabled",
+    "Language"
+}
+
+local function CopyConfigValue(value)
+    if type(value) ~= "table" then
+        return value
+    end
+    local copy = {}
+    for key, item in pairs(value) do
+        copy[key] = CopyConfigValue(item)
+    end
+    return copy
+end
+
+local function CollectConfig()
+    local data = {}
+    for _, key in ipairs(ConfigKeys) do
+        if _G[key] ~= nil then
+            data[key] = CopyConfigValue(_G[key])
+        end
+    end
+    return data
+end
+
+local function ApplyConfig(data)
+    if type(data) ~= "table" then return end
+    for _, key in ipairs(ConfigKeys) do
+        if data[key] ~= nil then
+            _G[key] = CopyConfigValue(data[key])
+        end
+    end
+end
+
+local function SaveConfig(force)
+    if ConfigSaving or (not force and not ConfigDirty) or typeof(writefile) ~= "function" then
+        return false
+    end
+    ConfigSaving = true
+    local ok = pcall(function()
+        if typeof(isfolder) == "function" and typeof(makefolder) == "function" and not isfolder(ConfigFolder) then
+            makefolder(ConfigFolder)
+        end
+        writefile(ConfigFile, HttpService:JSONEncode(CollectConfig()))
+    end)
+    ConfigSaving = false
+    if ok then ConfigDirty = false end
+    return ok
+end
+
+local function LoadConfig()
+    if typeof(readfile) ~= "function" or typeof(isfile) ~= "function" or not isfile(ConfigFile) then
+        return false
+    end
+    local ok, data = pcall(function()
+        return HttpService:JSONDecode(readfile(ConfigFile))
+    end)
+    if ok and type(data) == "table" then
+        ApplyConfig(data)
+        return true
+    end
+    return false
+end
+
+local InitialConfig = CollectConfig()
+LoadConfig()
+ConfigReady = true
+
+task.spawn(function()
+    local lastConfig = nil
+    while task.wait(1) do
+        if ConfigReady then
+            local ok, currentConfig = pcall(function()
+                return HttpService:JSONEncode(CollectConfig())
+            end)
+            if ok and currentConfig ~= lastConfig then
+                lastConfig = currentConfig
+                ConfigDirty = true
+            end
+            if ConfigDirty then SaveConfig(true) end
+        end
+    end
+end)
+
+--------------------------
+-- 功能核心邏輯
+--------------------------
+
+----------------------------------------
+-- RJR Hub 核心(移動/攻擊/聚怪/武器/見聞/存果/換服)
+----------------------------------------
+local TWEEN_PART_NAME = "OptimizedTweenPart"
+local TweenSnapDist = 100
+local TweenPullbackDist = 10
+local TweenStopToken = 0
+local ActiveTween = nil
+local AttackTarget = nil
+local HoldCFrame = nil
+local LiveHoldGetter = nil
+local cachedChar, cachedParts = nil, nil
+
+local function Notify(title, message, duration)
+    if WindUI then
+        WindUI:Notify({ Title = L(title), Content = L(message), Duration = duration or 3 })
+    end
+end
+
+function ReleaseHover()
+    AttackTarget = nil
+    HoldCFrame = nil
+    LiveHoldGetter = nil
+    NoClip(false)
+end
+
+function GetHRP()
+    local char = LocalPlayer.Character
+    if char then
+        return char:FindFirstChild("HumanoidRootPart")
+    end
+    return nil
+end
+
+function GetHumanoid()
+    local char = LocalPlayer.Character
+    if char then
+        return char:FindFirstChildOfClass("Humanoid")
+    end
+    return nil
+end
+
+function GetCharParts()
+    local char = LocalPlayer.Character
+    if char and char == cachedChar and cachedParts then
+        return cachedParts
+    end
+    local parts = {}
+    if char then
+        for _, v in ipairs(char:GetDescendants()) do
+            if v:IsA("BasePart") then
+                parts[#parts + 1] = v
+            end
+        end
+    end
+    cachedChar, cachedParts = char, parts
+    return parts
+end
+
+function WatchCharParts(char)
+    cachedChar, cachedParts = nil, nil
+    if not char then return end
+    char.DescendantAdded:Connect(function()
+        cachedChar, cachedParts = nil, nil
+    end)
+    char.DescendantRemoving:Connect(function()
+        cachedChar, cachedParts = nil, nil
+    end)
+end
+
+function SendKey(key, hold)
+    local code = Enum.KeyCode[key:upper()]
+    if not code then return end
+    VirtualInputManager:SendKeyEvent(true, code, false, game)
+    task.wait(hold or 0.1)
+    VirtualInputManager:SendKeyEvent(false, code, false, game)
+end
+
+function GetMobHealth(model)
+    if not model or typeof(model) ~= "Instance" then return nil end
+    local hum = model:FindFirstChildOfClass("Humanoid")
+    if hum then
+        local hp = tonumber(hum.Health)
+        if hp then return hp end
+    end
+    local value = model:FindFirstChild("Humanoid")
+    if value and value:IsA("ValueBase") then
+        local hp = tonumber(value.Value)
+        if hp then return hp end
+    end
+    return nil
+end
+
+function NoClip(v)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then return end
+    for _, part in ipairs(GetCharParts()) do
+        if part:IsA("BasePart") then
+            if v then
+                part.CanCollide = false
+            elseif part.Name == "HumanoidRootPart" or part.Name:find("LowerTorso")
+                or part.Name:find("UpperTorso") then
+                part.CanCollide = true
+            else
+                part.CanCollide = false
+            end
+        end
+    end
+end
+
+-- 小怪 Y 值上方(預設 15)
+function GetHoverCFrame(model, height)
+    local root = model and (model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart)
+    if not root then return nil end
+    local p = root.Position
+    local hrp = GetHRP()
+    local rot = hrp and (hrp.CFrame - hrp.CFrame.Position) or CFrame.new()
+    local y = p.Y + (height or _G.HoverHeight or 15)
+    if Halloween and Halloween.Target == model and Halloween.FloorY then y = math.max(y, Halloween.FloorY + 3) end
+    return CFrame.new(p.X, y, p.Z) * rot
+end
+
+function GetTweenSpeed()
+    return math.clamp(tonumber(_G.TweenSpeed) or 150, 150, 200)
+end
+
+function GetTweenPart()
+    local part = Workspace:FindFirstChild(TWEEN_PART_NAME)
+    if part and part:IsA("BasePart") then
+        return part
+    end
+    part = Instance.new("Part")
+    part.Name = TWEEN_PART_NAME
+    part.Size = Vector3.new(1, 1, 1)
+    part.Anchored = true
+    part.CanCollide = false
+    part.CanTouch = false
+    part.CanQuery = false
+    part.CastShadow = false
+    part.Massless = true
+    part.Transparency = 1
+    part.Parent = Workspace
+    return part
+end
+
+function StopTween()
+    _G.RJRTweenStopped = true
+    TweenStopToken = TweenStopToken + 1
+    if ActiveTween then
+        pcall(function() ActiveTween:Cancel() end)
+        ActiveTween = nil
+    end
+    local char = LocalPlayer.Character
+    local charRoot = char and char:FindFirstChild("HumanoidRootPart")
+    if charRoot then
+        local bodyClip = charRoot:FindFirstChild("BodyClip")
+        if bodyClip then bodyClip:Destroy() end
+    end
+    local highlight = char and char:FindFirstChild("Highlight")
+    if highlight then highlight:Destroy() end
+    NoClip(false)
+    task.defer(function()
+        task.wait(0.1)
+        _G.RJRTweenStopped = false
+    end)
+end
+
+function TweenStandUp(hum)
+    if not hum or (not hum.Sit and hum.SeatPart == nil) then return end
+    pcall(function()
+        hum.Sit = false
+        hum.SeatPart = nil
+        hum.PlatformStand = false
+        hum:ChangeState(Enum.HumanoidStateType.Jumping)
+    end)
+end
+
+function _tp(targetPos, abortCheck)
+    if _G.RJRTweenStopped then return false end
+    local startChar = LocalPlayer.Character
+    local myHRP = GetHRP()
+    if not myHRP then return false end
+    local myToken = TweenStopToken
+    local targetCFrame
+    local liveTarget = nil
+    if typeof(targetPos) == "function" then
+        targetCFrame = targetPos()
+        if not targetCFrame then return false end
+        liveTarget = targetPos
+    elseif typeof(targetPos) == "Vector3" then
+        targetCFrame = CFrame.new(targetPos)
+    elseif typeof(targetPos) == "CFrame" then
+        targetCFrame = targetPos
+    elseif typeof(targetPos) == "Instance" and targetPos:IsA("BasePart") then
+        targetCFrame = targetPos.CFrame
+    else
+        return false
+    end
+    HoldCFrame = nil
+    LiveHoldGetter = nil
+    myHRP = GetHRP()
+    if not myHRP then return false end
+    NoClip(true)
+    if not liveTarget then
+        local flat = (Vector3.new(myHRP.Position.X, 0, myHRP.Position.Z)
+            - Vector3.new(targetCFrame.Position.X, 0, targetCFrame.Position.Z)).Magnitude
+        if flat <= TweenSnapDist and math.abs(myHRP.Position.Y - targetCFrame.Position.Y) <= 30 then
+            if ActiveTween then
+                pcall(function() ActiveTween:Cancel() end)
+                ActiveTween = nil
+            end
+            myHRP.CFrame = targetCFrame
+            myHRP.AssemblyLinearVelocity = Vector3.zero
+            HoldCFrame = targetCFrame
+            return true
+        end
+    end
+    local part = GetTweenPart()
+    part.CFrame = myHRP.CFrame
+    local tweenSpeed = GetTweenSpeed()
+    if ActiveTween then
+        pcall(function() ActiveTween:Cancel() end)
+    end
+    local tween = { PlaybackState = Enum.PlaybackState.Playing }
+    function tween:Cancel()
+        if self.PlaybackState == Enum.PlaybackState.Playing then self.PlaybackState = Enum.PlaybackState.Cancelled end
+    end
+    ActiveTween = tween
+    local targetRot = targetCFrame - targetCFrame.Position
+    local aborted = false
+    local arrived = false
+    local lostTargetAt = nil
+    local nextAbortAt = 0
+    local lastSetPos = nil
+    local pausedUntil = 0
+    local deadline = tick() + math.max(8, (targetCFrame.Position - myHRP.Position).Magnitude / tweenSpeed + 8)
+    local connection
+    connection = RunService.Stepped:Connect(function(_, deltaTime)
+        if tween.PlaybackState ~= Enum.PlaybackState.Playing then return end
+        local dt = deltaTime or (1 / 60)
+        local curChar = LocalPlayer.Character
+        local curHum = curChar and curChar:FindFirstChildOfClass("Humanoid")
+        local currentHRP = GetHRP()
+        if not currentHRP or curChar ~= startChar
+            or not curHum or curHum.Health <= 0
+            or TweenStopToken ~= myToken then
+            aborted = true
+            tween:Cancel()
+            return
+        end
+        if curHum.Sit or curHum.SeatPart ~= nil then TweenStandUp(curHum) end
+        if lastSetPos and (currentHRP.Position - lastSetPos).Magnitude > TweenPullbackDist then
+            part.CFrame = currentHRP.CFrame
+            pausedUntil = tick() + 0.25
+            local goalPos = (liveTarget and liveTarget() or targetCFrame).Position
+            deadline = tick() + (goalPos - currentHRP.Position).Magnitude / tweenSpeed + 8
+        end
+        local goal = targetCFrame
+        if liveTarget then
+            goal = liveTarget()
+            if goal then
+                lostTargetAt = nil
+            elseif not lostTargetAt then
+                lostTargetAt = tick()
+            elseif tick() - lostTargetAt > 0.5 then
+                aborted = true
+                tween:Cancel()
+                return
+            end
+        end
+        if goal and tick() >= pausedUntil then
+            local cur = part.Position
+            local delta = goal.Position - cur
+            local dist = delta.Magnitude
+            local step = tweenSpeed * dt
+            if dist <= step or (liveTarget and dist <= TweenSnapDist) then
+                part.CFrame = goal
+                arrived = true
+                tween.PlaybackState = Enum.PlaybackState.Completed
+            elseif liveTarget then
+                part.CFrame = CFrame.new(cur + delta.Unit * step)
+            else
+                part.CFrame = CFrame.new(cur + delta.Unit * step) * targetRot
+            end
+        end
+        currentHRP.CFrame = part.CFrame
+        currentHRP.AssemblyLinearVelocity = Vector3.zero
+        lastSetPos = part.Position
+        local parts = GetCharParts()
+        for i = 1, #parts do
+            parts[i].CanCollide = false
+        end
+        if abortCheck and not aborted and not arrived then
+            local now = tick()
+            if now >= nextAbortAt then
+                nextAbortAt = now + 0.1
+                local ok, stop = pcall(abortCheck)
+                if ok and stop then
+                    aborted = true
+                    tween:Cancel()
+                end
+            end
+        end
+    end)
+    repeat
+        task.wait()
+    until arrived or aborted or tween.PlaybackState ~= Enum.PlaybackState.Playing
+        or tick() > deadline or TweenStopToken ~= myToken
+    connection:Disconnect()
+    tween:Cancel()
+    TweenStandUp(GetHumanoid())
+    if ActiveTween == tween then ActiveTween = nil end
+    if TweenStopToken ~= myToken then aborted = true end
+    if aborted then
+        HoldCFrame = nil
+    elseif arrived then
+        HoldCFrame = part.CFrame
+        if liveTarget then LiveHoldGetter = liveTarget end
+    end
+    return not aborted
+end
+
+function HoverTo(cf, arriveDist)
+    if not cf then return false end
+    local hrp = GetHRP()
+    if not hrp then return false end
+    AttackTarget = nil
+    LiveHoldGetter = nil
+    if (hrp.Position - cf.Position).Magnitude > (arriveDist or 10) then
+        if not _tp(cf) then return false end
+        if not GetHRP() then return false end
+    end
+    AttackTarget = nil
+    HoldCFrame = cf
+    return true
+end
+
+-- 聚怪
+local BringRange = 400
+local BringScanAt = 0
+local BringSimAt = 0
+local BringJobs = {}
+local BringTargetCFrame = nil
+local BringAnchor = nil
+BringBlocked = false
+
+function StartBringMobs()
+    _G.BringMobs = true
+end
+
+function StopBringMobs()
+    _G.BringMobs = false
+    BringBlocked = false
+    ClearBringJobs()
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if enemies then
+        for _, enemy in ipairs(enemies:GetChildren()) do
+            if enemy:IsA("Model") then
+                local root = enemy:FindFirstChild("HumanoidRootPart")
+                if root then
+                    local bv = root:FindFirstChild("BodyVelocity")
+                    if bv then bv:Destroy() end
+                    local bp = root:FindFirstChild("BringBodyPos")
+                    if bp then bp:Destroy() end
+                end
+            end
+        end
+    end
+end
+
+function ClearBringJobs()
+    BringAnchor = nil
+    BringTargetCFrame = nil
+    for mob, job in pairs(BringJobs) do
+        job.Done = true
+        BringJobs[mob] = nil
+    end
+end
+
+function IsNoBringMob(model)
+    local name = model and model.Name or ""
+    return (Halloween and (Halloween.Target == model or Halloween.PumpkinTarget == model))
+        or name == "Tyrant of the Skies" or name:find("Snowman", 1, true) ~= nil
+end
+
+function BringStart(mob)
+    if BringJobs[mob] then return end
+    local root = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
+    local hum = mob:FindFirstChildOfClass("Humanoid")
+    if not root or not hum then return end
+    local job = { Done = false, ExpireAt = tick() + 60 }
+    BringJobs[mob] = job
+    task.spawn(function()
+        local bodyPos = root:FindFirstChild("BringBodyPos")
+        if not bodyPos then
+            bodyPos = Instance.new("BodyPosition")
+            bodyPos.Name = "BringBodyPos"
+            bodyPos.MaxForce = Vector3.new(1000000, 1000000, 1000000)
+            bodyPos.P = 8000
+            bodyPos.D = 600
+            bodyPos.Position = root.Position
+            bodyPos.Parent = root
+        end
+        local failCount = 0
+        while _G.BringMobs and not job.Done and mob.Parent and root.Parent and hum.Health > 0
+            and tick() < (job.ExpireAt or 0) do
+            local targetCF = BringTargetCFrame
+            if targetCF then
+                for _, part in ipairs(mob:GetChildren()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
+                end
+                root.AssemblyLinearVelocity = Vector3.zero
+                root.AssemblyAngularVelocity = Vector3.zero
+                bodyPos.Position = targetCF.Position
+                failCount = 0
+            else
+                failCount = failCount + 1
+            end
+            if failCount > 15 then break end
+            task.wait(0.04)
+        end
+        job.Done = true
+        if BringJobs[mob] == job then BringJobs[mob] = nil end
+        pcall(function()
+            if bodyPos and bodyPos.Parent then bodyPos:Destroy() end
+            for _, part in ipairs(mob:GetChildren()) do
+                if part:IsA("BasePart") then part.CanCollide = true end
+            end
+        end)
+    end)
+end
+
+function BringEnemy(Mon, sameName)
+    if BringBlocked or not _G.BringMobs then return end
+    local now = tick()
+    if now - BringScanAt < 0.25 then return end
+    BringScanAt = now
+    local targetRoot = Mon:FindFirstChild("HumanoidRootPart") or Mon.PrimaryPart
+    if not targetRoot or not Attack.Alive(Mon) then return end
+    if now - BringSimAt > 3 then
+        BringSimAt = now
+        pcall(function()
+            if sethiddenproperty then
+                local sim = math.clamp(BringRange + 50, 100, 500)
+                sethiddenproperty(LocalPlayer, "SimulationRadius", sim)
+                sethiddenproperty(LocalPlayer, "MaxSimulationRadius", sim)
+            end
+        end)
+    end
+    BringAnchor = Mon
+    BringTargetCFrame = targetRoot.CFrame
+    BringStart(Mon)
+    for mob, job in pairs(BringJobs) do
+        local hum = mob:FindFirstChildOfClass("Humanoid")
+        local root = mob:FindFirstChild("HumanoidRootPart") or mob.PrimaryPart
+        if not mob.Parent or not hum or hum.Health <= 0 or not root then
+            job.Done = true
+            BringJobs[mob] = nil
+        else
+            job.ExpireAt = tick() + 60
+        end
+    end
+    local active = 0
+    for _ in pairs(BringJobs) do active = active + 1 end
+    if active >= 8 then return end
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if not enemies then return end
+    local targetPos = targetRoot.Position
+    local newCount = 0
+    for _, v in ipairs(enemies:GetChildren()) do
+        if v ~= Mon and not BringJobs[v] and (not sameName or v.Name == Mon.Name) then
+            local hum = v:FindFirstChildOfClass("Humanoid")
+            local root = v:FindFirstChild("HumanoidRootPart") or v.PrimaryPart
+            if hum and hum.Health > 0 and root
+                and (root.Position - targetPos).Magnitude <= BringRange then
+                BringStart(v)
+                newCount = newCount + 1
+                if newCount >= 4 then break end
+            end
+        end
+    end
+end
+
+-- 選擇武器
+function EquipWeapon(text)
+    if not text then return end
+    local char = LocalPlayer.Character
+    if not char then return end
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    local byTip = (text == "Melee" or text == "Sword" or text == "Gun" or text == "Blox Fruit")
+    for _, tool in ipairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            if (byTip and tool.ToolTip == text) or (not byTip and tool.Name == text) then
+                hum:EquipTool(tool)
+                return
+            end
+        end
+    end
+end
+
+function SyncSelectWeapon()
+    local want = _G.ChooseWP
+    if not want then return end
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then return end
+    for _, v in ipairs(backpack:GetChildren()) do
+        if v:IsA("Tool") and v.ToolTip == want then
+            _G.SelectWeapon = v.Name
+        end
+    end
+end
+
+task.spawn(function()
+    while task.wait(0.5) do
+        pcall(SyncSelectWeapon)
+    end
+end)
+
+-- 自動開啟見聞色(靜默)
+local ObsKenActive = function()
+    local value = LocalPlayer:GetAttribute("KenActive")
+    if value == nil then
+        local char = LocalPlayer.Character
+        value = char and char:GetAttribute("KenActive")
+    end
+    return value == true
+end
+
+local AutoKenSilentAt = 0
+
+function AutoKenSilentFlow()
+    if not _G.AutoKenSilent then return end
+    if tick() - (AutoKenSilentAt or 0) < 2 then return end
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not (char and hum and hum.Health > 0) then return end
+    if char:FindFirstChild("KenDisabled") then return end
+    if not CollectionService:HasTag(char, "Ken") then return end
+    if ObsKenActive() then return end
+    AutoKenSilentAt = tick()
+    if CommE and CommE:IsA("RemoteEvent") then
+        pcall(function() CommE:FireServer("Ken", true) end)
+    else
+        pcall(SendKey, "E")
+    end
+end
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(AutoKenSilentFlow)
+    end
+end)
+
+-- 自動存果實
+local FruitStoreFailCount = {}
+local FruitStoreBlackList = {}
+
+local function Tick_AutoStoreFruit()
+    local containers = { LocalPlayer:FindFirstChild("Backpack"), LocalPlayer.Character }
+    for _, container in ipairs(containers) do
+        if container then
+            for _, tool in ipairs(container:GetChildren()) do
+                if tool:IsA("Tool") and string.find(tool.Name, "Fruit", 1, true) then
+                    local original = tool:GetAttribute("OriginalName")
+                    local key = original or tool.Name
+                    if not FruitStoreBlackList[key] then
+                        local home = tool.Parent
+                        pcall(function()
+                            CommF:InvokeServer("StoreFruit", key, tool)
+                        end)
+                        task.wait(0.2)
+                        if tool.Parent == home then
+                            local n = (FruitStoreFailCount[key] or 0) + 1
+                            FruitStoreFailCount[key] = n
+                            if n >= 3 then
+                                FruitStoreBlackList[key] = true
+                            end
+                        else
+                            FruitStoreFailCount[key] = nil
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    while task.wait(1) do
+        if _G.AutoStoreFruit then
+            pcall(Tick_AutoStoreFruit)
+        end
+    end
+end)
+
+-- 換服邏輯
+local HopTeleportStarted = false
+local HopPending = false
+local HopPendingToken = 0
+local HopLastJob = nil
+
+function HopCancelPending(reason)
+    if not HopPending then return false end
+    HopPendingToken = HopPendingToken + 1
+    HopPending = false
+    getgenv().IsServerHopping = false
+    Notify("換服", reason or "已取消換服", 3)
+    return true
+end
+
+function FetchServerList()
+    local url = "https://games.roblox.com/v1/games/" .. game.PlaceId
+        .. "/servers/Public?sortOrder=Desc&excludeFullGames=true&limit=100"
+    local ok, res = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
+    if ok and type(res) == "table" and type(res.data) == "table" then
+        return res.data
+    end
+    return nil
+end
+
+function PickServer(servers, random)
+    if random then
+        local shuffled = {}
+        for i, server in ipairs(servers) do shuffled[i] = server end
+        for i = #shuffled, 2, -1 do
+            local j = math.random(i)
+            shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+        end
+        servers = shuffled
+    end
+    local function scan(minPlayers)
+        for _, s in ipairs(servers) do
+            local id = s.id and tostring(s.id)
+            local playing = tonumber(s.playing) or 0
+            local maxPlayers = tonumber(s.maxPlayers) or 12
+            if id and id ~= game.JobId and id ~= HopLastJob
+                and playing >= minPlayers and playing < maxPlayers then
+                return id
+            end
+        end
+        return nil
+    end
+    return scan(random and 0 or (tonumber(_G.HopMinPlayers) or 7)) or scan(2)
+end
+
+-- 換服後自動執行
+function HopQueueAutoExec()
+    if _G.AutoExecute ~= true then return false end
+    local fn = GetQueueOnTeleport()
+    if type(fn) ~= "function" then return false end
+    return pcall(fn, ScriptLoadstring)
+end
+
+-- 傳送狀態監控
+pcall(function()
+    LocalPlayer.OnTeleport:Connect(function(state)
+        if state == Enum.TeleportState.Started then
+            HopTeleportStarted = true
+        end
+    end)
+end)
+
+local HopDelay = 5
+
+function HopCountdownLabel(seconds)
+    return "換服倒數: " .. tostring(seconds or HopDelay) .. " 秒"
+end
+
+function HopToJob(jobId, message, delay, watchdog)
+    if type(jobId) ~= "string" or jobId == "" then return false end
+    if HopPending then return false end
+    local waitTime = tonumber(delay) or HopDelay
+    HopPendingToken = HopPendingToken + 1
+    local token = HopPendingToken
+    HopPending = true
+    HopTeleportStarted = false
+    HopLastJob = jobId
+    getgenv().IsServerHopping = true
+    getgenv().ServerHopAt = tick()
+    local suffix = ""
+    if waitTime > 0 then suffix = " · " .. HopCountdownLabel(waitTime) end
+    Notify("換服", (message or ("換服中 " .. jobId:sub(1, 8))) .. suffix, math.max(1, waitTime))
+    task.spawn(function()
+        local deadline = tick() + waitTime
+        while true do
+            if HopPendingToken ~= token or getgenv().IsServerHopping == false then
+                HopPending = false
+                return
+            end
+            local left = deadline - tick()
+            if left <= 0 then break end
+            task.wait(math.min(left, 0.25))
+        end
+        HopPending = false
+        if HopPendingToken ~= token then return end
+        HopQueueAutoExec()
+        local ok = pcall(function()
+            local remote = RS:FindFirstChild("__ServerBrowser") or RS:WaitForChild("__ServerBrowser", 3)
+            if remote then
+                remote:InvokeServer("teleport", jobId)
+            else
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer)
+            end
+        end)
+        if not ok then
+            getgenv().IsServerHopping = false
+            Notify("換服", "換服傳送失敗", 4)
+        end
+    end)
+    return true
+end
+
+function HopServer(force, immediate, random)
+    if not force then
+        getgenv().IsServerHopping = false
+        return
+    end
+    local now = tick()
+    if getgenv().IsServerHopping and getgenv().ServerHopAt and (now - getgenv().ServerHopAt) > 45 then
+        getgenv().IsServerHopping = false
+    end
+    if getgenv().IsServerHopping then return end
+    getgenv().IsServerHopping = true
+    getgenv().ServerHopAt = now
+    local servers = FetchServerList()
+    if not servers then
+        getgenv().IsServerHopping = false
+        Notify("換服", "未取到伺服器列表", 3)
+        return
+    end
+    local target = PickServer(servers, random)
+    if not target then
+        target = PickServer(servers, random)
+    end
+    if not target then
+        getgenv().IsServerHopping = false
+        Notify("換服", "沒有找到可用的伺服器", 5)
+        return
+    end
+    return HopToJob(target, "換服中 " .. target, immediate and 0 or HopDelay, immediate == true)
+end
+
+-- 下船
+local function ForceUnseat(seconds, check)
+    local deadline = tick() + (seconds or 5)
+    repeat
+        if check and not check() then return false end
+        local hum = GetHumanoid()
+        if not hum or (not hum.Sit and hum.SeatPart == nil) then return true end
+        pcall(function()
+            hum.Sit = false
+            hum.PlatformStand = false
+        end)
+        local hrp = GetHRP()
+        if hrp then
+            pcall(function() hrp.CFrame = hrp.CFrame + Vector3.new(0, 10, 0) end)
+        end
+        task.wait(0.3)
+    until tick() > deadline
+    local hum = GetHumanoid()
+    return hum == nil or (not hum.Sit and hum.SeatPart == nil)
+end
+
+----------------------------------------
+-- 攻擊模組
+----------------------------------------
+Attack = {}
+
+Attack.Alive = function(model)
+    local hp = GetMobHealth(model)
+    return hp ~= nil and hp > 0
+end
+
+function Attack_Clone(inst)
+    if typeof(cloneref) == "function" then
+        return cloneref(inst)
+    end
+    return inst
+end
+
+local AttackObfuscatedRemote, AttackObfuscatedId = nil, nil
+
+local function Attack_CaptureRemote(Remote)
+    if Remote and Remote:IsA("RemoteEvent") and Remote:GetAttribute("Id") then
+        AttackObfuscatedRemote = Remote
+        AttackObfuscatedId = Remote:GetAttribute("Id")
+    end
+end
+
+for _, name in ipairs({ "Util", "Common", "Remotes", "Assets", "FX" }) do
+    local folder = RS:FindFirstChild(name)
+    if folder then
+        for _, child in ipairs(folder:GetChildren()) do
+            Attack_CaptureRemote(child)
+        end
+        folder.ChildAdded:Connect(Attack_CaptureRemote)
+    end
+end
+
+local AttackSeedCache, AttackSeedAt = nil, 0
+
+local function Attack_GetSeed()
+    local now = os.clock()
+    if AttackSeedCache and (now - AttackSeedAt) < 1 then
+        return AttackSeedCache
+    end
+    if RemoteSeed then
+        local ok, seed = pcall(function()
+            return RemoteSeed:InvokeServer()
+        end)
+        if ok and seed then
+            AttackSeedCache = seed
+            AttackSeedAt = now
+            return seed
+        end
+    end
+    return AttackSeedCache or 1
+end
+
+local function Attack_BuildHitList(character, origin)
+    local hitList = {}
+    local folders = {
+        Workspace:FindFirstChild("Enemies"),
+        Workspace:FindFirstChild("Characters"),
+        Workspace:FindFirstChild("SeaBeasts"),
+    }
+    for _, folder in ipairs(folders) do
+        if folder then
+            for _, model in ipairs(folder:GetChildren()) do
+                if model ~= character then
+                    local root = model:FindFirstChild("HumanoidRootPart")
+                    if root then
+                        local hp = GetMobHealth(model)
+                        if hp and hp > 0 and (root.Position - origin).Magnitude <= 60 then
+                            hitList[#hitList + 1] = { model, root }
+                            if #hitList >= 12 then return hitList end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return hitList
+end
+
+function Attack_Auto()
+    local character = LocalPlayer.Character
+    if not character then return end
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local tool = character:FindFirstChildOfClass("Tool")
+    if not tool then return end
+    local WT = tool:GetAttribute("WeaponType")
+    if WT ~= "Melee" and WT ~= "Sword" then return end
+    local hitList = Attack_BuildHitList(character, hrp.Position)
+    if #hitList == 0 then return end
+    pcall(function()
+        RegisterAttack:FireServer()
+        local primaryModel = hitList[1][1]
+        local head = primaryModel and primaryModel:FindFirstChild("Head")
+        if not head then return end
+        RegisterHit:FireServer(head, hitList, {}, tostring(LocalPlayer.UserId):sub(2, 4) ..
+            tostring(coroutine.running()):sub(11, 15))
+        if AttackObfuscatedRemote and AttackObfuscatedId then
+            local key = math.floor(workspace:GetServerTimeNow() / 10 % 10) + 1
+            local encName = string.gsub("RE/RegisterHit", ".", function(c)
+                return string.char(bit32.bxor(string.byte(c), key))
+            end)
+            local encId = bit32.bxor(AttackObfuscatedId + 909090, Attack_GetSeed() * 2)
+            Attack_Clone(AttackObfuscatedRemote):FireServer(encName, encId, head, hitList)
+        end
+    end)
+end
+
+local LastAttackTime = 0
+local manualConnection = nil
+
+local function startManual()
+    if manualConnection then return end
+    manualConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if _G.FastAttack then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            pcall(Attack_Auto)
+        end
+    end)
+end
+
+local function stopManual()
+    if manualConnection then
+        manualConnection:Disconnect()
+        manualConnection = nil
+    end
+end
+
+if not _G.FastAttack then startManual() end
+
+LocalPlayer.CharacterAdded:Connect(function(char)
+    AttackTarget = nil
+    HoldCFrame = nil
+    LiveHoldGetter = nil
+    ActiveTween = nil
+    stopManual()
+    task.wait(0.5)
+    WatchCharParts(char)
+    NoClip(false)
+    if not _G.FastAttack then startManual() end
+end)
+
+RunService.Heartbeat:Connect(function(dt)
+    if _G.FastAttack and tick() - LastAttackTime >= 0.1 then
+        LastAttackTime = tick()
+        pcall(Attack_Auto)
+    end
+    if ActiveTween and ActiveTween.PlaybackState == Enum.PlaybackState.Playing then return end
+    local hrp = GetHRP()
+    if not hrp then return end
+    local goal = nil
+    local model = AttackTarget
+    if model then
+        local hum = model.Parent and model:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then
+            AttackTarget, HoldCFrame, LiveHoldGetter = nil, nil, nil
+        else
+            goal = GetHoverCFrame(model)
+        end
+    end
+    if not goal then
+        if LiveHoldGetter then
+            local ok, cf = pcall(LiveHoldGetter)
+            if ok and cf then
+                goal = cf
+            else
+                LiveHoldGetter = nil
+                goal = HoldCFrame
+            end
+        else
+            goal = HoldCFrame
+        end
+    end
+    if not goal then return end
+    local gap = (goal.Position - hrp.Position).Magnitude
+    if gap > 400 and not AttackTarget then
+        HoldCFrame = nil
+        LiveHoldGetter = nil
+        return
+    end
+    if not LiveHoldGetter then HoldCFrame = goal end
+    hrp.AssemblyLinearVelocity = Vector3.zero
+    hrp.AssemblyAngularVelocity = Vector3.zero
+    for _, p in ipairs(GetCharParts()) do
+        if p.Parent then p.CanCollide = false end
+    end
+    if gap <= TweenSnapDist then
+        hrp.CFrame = goal
+    else
+        local step = math.min(gap, GetTweenSpeed() * dt)
+        hrp.CFrame = hrp.CFrame:Lerp(goal, step / gap)
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.1) do
+        local anchor = BringAnchor
+        if anchor then
+            local hp = anchor.Parent and GetMobHealth(anchor) or nil
+            if not anchor.Parent or not hp or hp <= 0 then
+                local job = BringJobs[anchor]
+                if job then
+                    job.Done = true
+                    BringJobs[anchor] = nil
+                end
+                BringAnchor = nil
+                BringTargetCFrame = nil
+            end
+        end
+    end
+end)
+
+Attack.Kill = function(model, Succes, sameName)
+    if not (model and Succes) then return end
+    if not model:FindFirstChild("HumanoidRootPart") then return end
+    AttackTarget = model
+    local noBring = IsNoBringMob(model)
+    if noBring then
+        BringBlocked = true
+        ClearBringJobs()
+    else
+        BringBlocked = false
+    end
+    if _G.BringMobs and not noBring then
+        pcall(BringEnemy, model, sameName)
+    end
+    EquipWeapon(_G.SelectWeapon or _G.ChooseWP)
+end
+
+function FindNearestEnemy(pred, folders, requireRoot)
+    local hrp = GetHRP()
+    if not hrp then return nil end
+    local myPos = hrp.Position
+    local best, bestDist
+    for _, folder in ipairs(folders or { Workspace:FindFirstChild("Enemies") }) do
+        if folder then
+            for _, v in ipairs(folder:GetChildren()) do
+                local hum = v:FindFirstChildOfClass("Humanoid")
+                if hum and Attack.Alive(v) and (not pred or pred(v)) then
+                    local root = v:FindFirstChild("HumanoidRootPart")
+                    if not root and folder.Name == "SeaBeasts" then root = v.PrimaryPart end
+                    if not requireRoot or root then
+                        local d = root and (root.Position - myPos).Magnitude or math.huge
+                        if not bestDist or d < bestDist then
+                            bestDist, best = d, v
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+function FindEnemy(names)
+    local predicate = (type(names) == "string") and function(mob) return mob.Name == names end
+        or function(mob) return names[mob.Name] == true end
+    return FindNearestEnemy(predicate)
+end
+
+function KillLoop(mob, isActive, shouldStop, sameName, priority)
+    local function hover()
+        if not mob.Parent or not Attack.Alive(mob) then return nil end
+        return GetHoverCFrame(mob)
+    end
+
+    local noBring = IsNoBringMob(mob)
+    if noBring then
+        BringBlocked = true
+        ClearBringJobs()
+    else
+        BringBlocked = false
+    end
+    if _G.BringMobs and not noBring then
+        task.spawn(function()
+            while isActive() and mob.Parent and Attack.Alive(mob) do
+                pcall(BringEnemy, mob, sameName)
+                task.wait(0.3)
+            end
+        end)
+    end
+    repeat
+        task.wait()
+        if not isActive() then break end
+        _tp(hover, function()
+            return not isActive() or not mob.Parent or not Attack.Alive(mob) or (shouldStop and shouldStop())
+        end)
+        if not isActive() then break end
+        Attack.Kill(mob, true, sameName)
+    until not isActive() or not mob.Parent or not Attack.Alive(mob) or (shouldStop and shouldStop())
+    if noBring then BringBlocked = false end
+    if not isActive() then ReleaseHover() end
+end
+
+----------------------------------------
+-- 萬聖節活動(RJR Hub 提取)
+----------------------------------------
+Halloween = {
+    KnockDelay = 2,
+    TrickDelay = 1,
+    Enemies = {
+        "Cursed Skeleton", "Vampire", "Gorilla", "Oni Soldier", "Celestial Soldier",
+        "Snowman", "rip_return", "Unbound Werewolf", "Rip Infantry", "Big Bones", "Desert Skeleton", "Evil Slime",
+    },
+    DoorBySea = {
+        [1] = {
+            CFrame.new(-1016.05951, 11.1554155, 1540.78235, -0.259074688, 0, 0.965857327, 0, 1, 0, -0.965857327, 0, -0.259074688),
+            CFrame.new(-1089.28284, 10.6633625, 1604.43518, 0.866141319, 0, -0.499799222, 0, 1, 0, 0.499799222, 0, 0.866141319),
+            CFrame.new(-1090.78882, 10.5735903, 1694.84729, 0.965862036, 0, 0.259057134, 0, 1, 0, -0.259057134, 0, 0.965862036),
+            CFrame.new(-665.780701, 9.71188927, 1701.52112, -0.99181968, 5.254558036e-08, -0.127646819, 5.13036298e-08, 1, 1.30173978e-08, 0.127646819, 6.36216635e-09, -0.99181968),
+            CFrame.new(-571.03418, 9.71188927, 1553.104, 0.238623217, 8.71156587e-08, -0.971112251, 2.74919216e-08, 1, 9.64624505e-08, 0.971112251, -4.97159226e-08, 0.238623217),
+            CFrame.new(-615.743652, 9.68747139, 1479.30908, 0.815481067, 0.00558292679, -0.578756809, 0.000366810855, 0.999948263, 0.0101627586, 0.578783572, -0.00849983189, 0.8154369),
+            CFrame.new(722.841309, 7.79379559, 1444.29028, 0.977708578, -4.91986221e-08, -0.209966481, 3.68222004e-08, 1, -6.2854042e-08, 0.209966481, 5.37215108e-08, 0.977708578),
+        },
+        [2] = {
+            CFrame.new(-512.035645, 74.7451935, 156.465195, 0, 0, 1, 0, 1, -0, -1, 0, 0),
+            CFrame.new(-420.992615, 74.4821396, 156.168015, 0, 0, 1, 0, 1, -0, -1, 0, 0),
+            CFrame.new(-371.423737, 74.7515182, 154.181808, 0.719358087, 0, 0.694639385, 0, 1, 0, -0.694639385, 0, 0.719358087),
+            CFrame.new(-637.225525, 74.6199265, 206.692734, -0.999848366, 0, -0.017436387, 0, 1, 0, 0.017436387, 0, -0.999848366),
+            CFrame.new(-620.019348, 74.4223099, 103.196877, -0.707134247, 0.00017884915, -0.707079291, -1.93455853e-05, 0.99999994, 0.000272287783, 0.707079291, 0.000206222874, -0.707134247),
+        },
+        [3] = {
+            CFrame.new(-12257.124, 334.613007, -7417.19434, -0.996191859, 0, -0.0871884301, 0, 1, 0, 0.0871884301, 0, -0.996191859),
+            CFrame.new(-12179.9883, 335.293854, -7568.4043, 0.984812498, 0, 0.173621148, 0, 1, 0, -0.173621148, 0, 0.984812498),
+            CFrame.new(-12307.4014, 335.27951, -7572.65381, -0.173624277, 0, -0.984811902, 0, 1, 0, 0.984811902, 0, -0.173624277),
+            CFrame.new(-12461.3984, 334.636444, -7703.56934, 0.707134247, 0, 0.707079291, 0, 1, 0, -0.707079291, 0, 0.707134247),
+            CFrame.new(-12603.7588, 335.348114, -7739.28662, -0.939700961, 0, 0.341998369, 0, 1, 0, -0.341998369, 0, -0.939700961),
+            CFrame.new(-12533.2305, 334.66803, -7269.23242, -0.166172266, 0, -0.98609668, 0, 1, 0, 0.98609668, 0, -0.166172266),
+        },
+    },
+}
+
+function Halloween.Doors()
+    return Halloween.DoorBySea[Sea1 and 1 or Sea2 and 2 or Sea3 and 3 or 0] or {}
+end
+
+Halloween.EntryCache, Halloween.EntryAt = nil, 0
+
+function Halloween.DoorEntries()
+    local now = os.clock()
+    if Halloween.EntryCache and now - Halloween.EntryAt < 30 then return Halloween.EntryCache end
+    local list = {}
+    for _, d in ipairs(Workspace:GetDescendants()) do
+        if d.Name == "HalloweenDoor" and d:IsA("Model") then
+            local prox = d:FindFirstChild("Proximity")
+            local prompt = prox and prox:FindFirstChildOfClass("ProximityPrompt")
+            if prompt then
+                list[#list + 1] = { Door = d, Prompt = prompt, CFrame = CFrame.new(prox.Position) }
+            end
+        end
+    end
+    if #list == 0 then
+        for _, cf in ipairs(Halloween.Doors()) do list[#list + 1] = { CFrame = cf } end
+    end
+    Halloween.EntryCache, Halloween.EntryAt = list, now
+    return list
+end
+
+function Halloween.NearestPrompt(position)
+    local nearest, dist = nil, 10
+    for _, v in pairs(Workspace:GetDescendants()) do
+        if v:IsA("ProximityPrompt") then
+            local parent = v.Parent
+            local root = parent and (parent:FindFirstChild("HumanoidRootPart") or parent:FindFirstChild("Head") or parent:FindFirstChild("Torso") or parent)
+            local ok, pos = pcall(function() return root.Position end)
+            if ok and typeof(pos) == "Vector3" then
+                local d = (pos - position).Magnitude
+                if d < dist then
+                    dist = d
+                    nearest = v
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+function Halloween.ClickButton(btn)
+    if not btn then return false end
+    local fired = false
+    if getconnections then
+        for _, signal in ipairs({ "MouseButton1Click", "Activated" }) do
+            pcall(function()
+                for _, conn in ipairs(getconnections(btn[signal])) do
+                    conn:Fire()
+                    fired = true
+                end
+            end)
+        end
+    end
+    if not fired and firesignal then
+        for _, signal in ipairs({ "MouseButton1Click", "Activated" }) do
+            fired = pcall(firesignal, btn[signal]) or fired
+        end
+    end
+    return fired
+end
+
+function Halloween.PickFirstOption()
+    local gui = LocalPlayer.PlayerGui:FindFirstChild("DialogueGui")
+    if not gui then return false end
+    local acted = false
+    for _, frame in ipairs(gui:GetChildren()) do
+        if frame:IsA("Frame") and frame.Visible then
+            local page = frame:FindFirstChild("pageButton")
+            local list = frame:FindFirstChild("optionsList")
+            local scroller = list and list:FindFirstChild("scroller")
+            if page then
+                acted = Halloween.ClickButton(page) or acted
+            elseif scroller then
+                local first
+                for _, option in ipairs(scroller:GetChildren()) do
+                    local button = option:IsA("Frame") and option:FindFirstChild("button")
+                    if button and (not first or button.AbsolutePosition.Y < first.AbsolutePosition.Y) then
+                        first = button
+                    end
+                end
+                if first then acted = Halloween.ClickButton(first) or acted end
+            end
+        end
+    end
+    return acted
+end
+
+Halloween.PumpkinSkip = {}
+Halloween.WindowMinutes = 10
+Halloween.GachaBox = "Halloween26Gacha"
+
+-- 萬聖節扭蛋(自動兌獎)
+function Halloween.PullGacha(quiet)
+    local function warn_(msg)
+        if not quiet then Notify("萬聖節扭蛋", msg, 4) end
+    end
+    local remote = Net:FindFirstChild("RF/GachaNetworkRF")
+    if not remote then return warn_("扭蛋模組載入失敗") end
+    local okCheck, info = pcall(remote.InvokeServer, remote, { Context = "Check", BoxName = Halloween.GachaBox })
+    if okCheck and type(info) == "table" then
+        local restricted = info.PaidRandomItemsRestricted
+        if type(restricted) == "table" and restricted.Value then
+            return warn_(tostring(restricted.ErrorMessage))
+        end
+        for _, key in ipairs({ "Level", "Cooldown", "Price" }) do
+            local req = info[key]
+            if type(req) == "table" and req.RequirementMet == false then
+                return warn_(tostring(req.ErrorMessage))
+            end
+        end
+    end
+    local okBuy, result = pcall(remote.InvokeServer, remote, { Context = "Purchase", BoxName = Halloween.GachaBox })
+    if okBuy and result then
+        Notify("萬聖節扭蛋", "已抽取萬聖節扭蛋", 3)
+    else
+        warn_("扭蛋抽取失敗")
+    end
+end
+
+task.spawn(function()
+    task.wait(2)
+    if _G.AutoHalloweenGacha then
+        pcall(Halloween.PullGacha, true)
+    end
+    while task.wait(60) do
+        if _G.AutoHalloweenGacha then
+            pcall(Halloween.PullGacha, true)
+        end
+    end
+end)
+
+function Halloween.InWindow()
+    return math.floor(Workspace:GetServerTimeNow() / 60) % 60 < Halloween.WindowMinutes
+end
+
+function Halloween.IsBossDoor(door)
+    return door ~= nil and door.Parent ~= nil and door:GetAttribute("BOSS_ACTIVE_SERVER") == true
+end
+
+function Halloween.BossEntry()
+    local current = Halloween.BossDoorEntry
+    if current and (Halloween.BossEntered or Halloween.ExitDoor or Halloween.IsBossDoor(current.Door)) then return current end
+    for _, entry in ipairs(Halloween.DoorEntries()) do
+        if Halloween.IsBossDoor(entry.Door) then return entry end
+    end
+    for _, door in ipairs(CollectionService:GetTagged("HellfireBossDoor")) do
+        local part = door:FindFirstChild("Proximity") or door:FindFirstChild("Part")
+        if Halloween.IsBossDoor(door) and part and part:IsA("BasePart") then return { Door = door, CFrame = part.CFrame } end
+    end
+    return nil
+end
+
+function Halloween.OnBossEvent(command, door, plr, data)
+    if command == "DoorOpened" and door and type(data) == "table"
+        and (data.Boss == true or data.Event == "Boss Fight" or data.Event == "Hellfire Boss") then
+        local part = door:FindFirstChild("Proximity") or door:FindFirstChild("Part")
+        if part and part:IsA("BasePart") and not Halloween.BossEntered then
+            Halloween.BossDoorEntry = { Door = door, CFrame = part.CFrame }
+        end
+    elseif command == "BossTeleportSound" or command == "HellfireTransition" then
+        if Halloween.ExitingDoor then
+            Halloween.ExitConfirmed = true
+        elseif Halloween.EnteringDoor then
+            Halloween.BossDoor, Halloween.BossEntered = Halloween.EnteringDoor, true
+            Halloween.BossDead = false
+        else return end
+        Halloween.BossWarpUntil = tick() + 2
+        StopTween(); ReleaseHover()
+    elseif command == "HellfireBossDeath" and Halloween.BossEntered then
+        Halloween.BossDead = true
+        StopTween(); ReleaseHover()
+    elseif command == "HellfireBossExit" and Halloween.BossEntered and type(door) == "table" then
+        local exitDoor = door.Door
+        if typeof(exitDoor) ~= "Instance" or not exitDoor:IsA("Model") or type(door.Lifetime) ~= "number" then return end
+        Halloween.ExitDoor, Halloween.ExitConfirmed = exitDoor, false
+        Halloween.ExitReadyAt, Halloween.ExitUntil = tick() + 1.6, tick() + door.Lifetime
+        Halloween.BossDead = true
+        StopTween(); ReleaseHover()
+    elseif command == "EventFinished" and not Halloween.BossEntered then
+        if Halloween.BossDoorEntry and Halloween.BossDoorEntry.Door == door then Halloween.BossDoorEntry = nil end
+        if Halloween.BossDoor == door then Halloween.BossDoor = nil end
+    end
+end
+
+Halloween.BossConnection = HalloweenEventRemote.OnClientEvent:Connect(Halloween.OnBossEvent)
+
+function Halloween.ExitBoss()
+    local door = Halloween.ExitDoor
+    if not Halloween.Auto() or not door or not door.Parent or tick() < (Halloween.ExitReadyAt or 0)
+        or tick() < (Halloween.ExitRetryAt or 0) then return end
+    if tick() >= (Halloween.ExitUntil or 0) then
+        Halloween.BossState = "exit portal expired"
+        return
+    end
+    local part = door:FindFirstChild("Part")
+    if not part or not part:IsA("BasePart") then return end
+    Halloween.ExitRetryAt, Halloween.ExitingDoor = tick() + 3, door
+    Halloween.BossState = "leaving boss room"
+    local origin = part.Position
+    local ok, err = pcall(function()
+        _tp(part.CFrame * CFrame.new(0, 0, -0.5), function()
+            return not Halloween.Auto() or Halloween.ExitConfirmed or not door.Parent
+        end)
+        ReleaseHover()
+        local deadline = math.min(tick() + 4, Halloween.ExitUntil)
+        while Halloween.Auto() and tick() < deadline do
+            local root = GetHRP()
+            if root and (root.Position - origin).Magnitude > 100 then Halloween.ExitConfirmed = true end
+            if Halloween.ExitConfirmed then break end
+            task.wait(0.1)
+        end
+    end)
+    Halloween.ExitingDoor = nil
+    if not ok then error(err, 0) end
+    if Halloween.ExitConfirmed then
+        Halloween.BossEntered, Halloween.BossDead, Halloween.BossDoor = false, false, nil
+        Halloween.ExitDoor, Halloween.PendingDoor, Halloween.BossDoorEntry = nil, nil, nil
+        Halloween.BossWarpUntil, Halloween.BossState = tick() + 2, "returned"
+    end
+end
+
+function Halloween.EnterBoss(entry)
+    local door = entry.Door
+    if not Halloween.Auto() or (not Halloween.IsBossDoor(door) and not Halloween.BossEntered) then return end
+    local part = door and door:FindFirstChild("Part")
+    if not Halloween.BossEntered and (not part or not part:IsA("BasePart")) then return end
+    Halloween.PendingDoor, Halloween.BossDoorEntry = entry, entry
+    if not (Halloween.BossEntered and Halloween.BossDoor == door) then
+        if tick() < (entry.BossRetryAt or 0) then return end
+        entry.BossRetryAt, Halloween.EnteringDoor = tick() + 5, door
+        Halloween.BossEntered, Halloween.BossState = false, "approaching boss entrance"
+        local ok, err = pcall(function()
+            _tp(part.CFrame * CFrame.new(0, 0, -0.5), function()
+                return not Halloween.Auto() or not Halloween.IsBossDoor(door) or Halloween.BossEntered
+            end)
+            ReleaseHover()
+            local deadline = tick() + 4
+            while Halloween.Auto() and Halloween.IsBossDoor(door) and not Halloween.BossEntered and tick() < deadline do task.wait(0.1) end
+        end)
+        Halloween.EnteringDoor = nil
+        if not ok then error(err, 0) end
+    end
+    if not (Halloween.BossEntered and Halloween.BossDoor == door) then return end
+    local char = LocalPlayer.Character
+    Halloween.BossState = "boss room"
+    while Halloween.Auto() and Halloween.BossEntered do
+        local hum, root = GetHumanoid(), GetHRP()
+        if LocalPlayer.Character ~= char or not hum or hum.Health <= 0 then
+            Halloween.BossEntered, Halloween.BossDoor, Halloween.ExitDoor = false, nil, nil
+            break
+        end
+        if Halloween.ExitDoor then Halloween.ExitBoss()
+        elseif tick() >= (Halloween.BossWarpUntil or 0) and not Halloween.IsBossDoor(door)
+            and root and (root.Position - entry.CFrame.Position).Magnitude < 100 then
+            Halloween.BossEntered, Halloween.BossDoor = false, nil
+        end
+        task.wait(0.2)
+    end
+    if Halloween.Paused() and not Halloween.BossDead then Halloween.BossEntered, Halloween.BossDoor = false, nil end
+    if not Halloween.BossEntered and not Halloween.IsBossDoor(door) then
+        Halloween.PendingDoor, Halloween.BossDoorEntry, Halloween.BossDead = nil, nil, false
+    end
+end
+
+function Halloween.Paused()
+    return false
+end
+
+function Halloween.Auto()
+    return _G.HalloweenAuto == true and not Halloween.Paused()
+end
+
+function Halloween.DoorsBusy()
+    return Halloween.InWindow() and Halloween.Auto()
+end
+
+----------------------------------------
+-- 任務優先權協調 (整點活動 > 南瓜BOSS > 稀有南瓜 > 普通南瓜)
+----------------------------------------
+Halloween.Scheduler = {
+    BossPending = false,     -- 已通知南瓜刷取讓出執行權，BOSS 取得執行權
+}
+
+-- 整點活動是否正在占用執行權 (XX:00~XX:10 且已開啟自動整點活動)
+function Halloween.EventOwns()
+    return Halloween.InWindow() and Halloween.Auto()
+end
+
+-- 南瓜刷取是否必須讓出執行權 (整點活動期間或南瓜 BOSS 搶占中)
+function Halloween.PumpkinYield()
+    return Halloween.EventOwns() or Halloween.Scheduler.BossPending
+end
+
+-- 南瓜 BOSS 巡檢：時間 / 狀態 / 召喚材料數量
+function Halloween.BossGate()
+    local state = Halloween.PumpkinBoss
+    local canRun = _G.AutoPumpkinBoss == true
+        and not Halloween.Paused()
+        and not Halloween.Knocking
+        and not Halloween.BossEntered
+        and not Halloween.EnteringDoor
+        and not HopPending
+        and tick() >= (Halloween.BossWarpUntil or 0)
+    if not canRun then state.GateReady = false; return false end
+    local info = state.Status()
+    local ready = state.Ready(info)
+    -- 同一個伺服器重複召喚：上一輪已清空且人還留在競技場內時，視為可再次召喚
+    if not ready then
+        local arena = state.Arena()
+        if arena and arena:GetAttribute("ArenaState") == "Cleared" and state.Inside(arena)
+            and info and info.Open and not info.Busy then
+            ready = true
+        end
+    end
+    if ready then
+        state.GateReady = true
+        return not Halloween.EventOwns()
+    end
+    state.GateReady = false
+    return false
+end
+
+-- 材料不足或時間條件改變時，立即解除 BOSS 的執行權請求
+function Halloween.Scheduler.Watch()
+    if _G.AutoPumpkinBoss == true and Halloween.PumpkinBoss.GateReady
+        and not Halloween.EventOwns() then return end
+    Halloween.Scheduler.BossPending = false
+end
+
+task.spawn(function()
+    while task.wait(0.5) do
+        if Halloween.PumpkinBoss.Init then pcall(Halloween.Scheduler.Watch) end
+    end
+end)
+
+function Halloween.PumpkinActive()
+    return (_G.AutoPumpkin or _G.AutoRarePumpkin) and not Halloween.Paused() and not Halloween.PumpkinYield() and not Halloween.Fighting and not Halloween.BossEntered and not Halloween.EnteringDoor
+        and tick() >= (Halloween.BossWarpUntil or 0)
+end
+
+Halloween.Fighting = false
+Halloween.Knocking = false
+Halloween.DoorRange = 250
+
+function Halloween.NearDoor(pos)
+    for _, entry in ipairs(Halloween.DoorEntries()) do
+        if (entry.CFrame.Position - pos).Magnitude <= Halloween.DoorRange then return true, entry.CFrame.Position.Y end
+    end
+    return false
+end
+
+function Halloween.HuntAnywhere(name)
+    return name == "Unbound Werewolf" or name:lower():find("hellfire", 1, true) ~= nil
+end
+
+function Halloween.SameArea(root)
+    local own = GetHRP()
+    return own ~= nil and math.abs(root.Position.Y - own.Position.Y) <= 150
+        and (root.Position - own.Position).Magnitude <= 1500
+end
+
+function Halloween.FindTarget()
+    if Halloween.Paused() or Halloween.BossDead or tick() < (Halloween.BossWarpUntil or 0) then return nil end
+    local bossEntry = Halloween.BossEntry()
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if not enemies then return nil end
+    local inWindow = Halloween.InWindow()
+    for _, mob in ipairs(enemies:GetChildren()) do
+        local root = mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart")
+        if root and mob:FindFirstChild("Humanoid") and Attack.Alive(mob) and Halloween.SameArea(root) then
+            local owner = mob:GetAttribute("LocalEnemy")
+            local owned = owner == nil or owner == LocalPlayer.Name or owner == LocalPlayer.UserId
+            if owned and Halloween.HuntAnywhere(mob.Name) then
+                local own = GetHRP()
+                local inside = Halloween.BossEntered and (not bossEntry or Halloween.BossDoor == bossEntry.Door)
+                if bossEntry and own and (own.Position - bossEntry.CFrame.Position).Magnitude > 500
+                    and (root.Position - own.Position).Magnitude < 500 then
+                    Halloween.BossDoor, Halloween.BossEntered = bossEntry.Door, true
+                    inside = true
+                end
+                if not bossEntry or inside then Halloween.FloorY = nil; return mob end
+            end
+            local near, floor = Halloween.NearDoor(root.Position)
+            if owned and inWindow and table.find(Halloween.Enemies, mob.Name) and near and root.Position.Y >= floor - 12 then
+                Halloween.FloorY = floor
+                return mob
+            end
+        end
+    end
+    return nil
+end
+
+function Halloween.DialogueVisible()
+    local gui = LocalPlayer.PlayerGui:FindFirstChild("DialogueGui")
+    if not gui then return false end
+    for _, frame in ipairs(gui:GetChildren()) do
+        if frame:IsA("Frame") and frame.Visible then return true end
+    end
+    return false
+end
+
+Halloween.JackName = "Jack o' Lantern"
+Halloween.SnowmanName = "Pumpkin Snowman"
+Halloween.RareHoldUntil = 0
+Halloween.RareFailures = setmetatable({}, { __mode = "k" })
+
+function Halloween.EquipMelee()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    local current = char:FindFirstChildOfClass("Tool")
+    if current and current:GetAttribute("WeaponType") == "Melee" then return true end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    for _, tool in ipairs(LocalPlayer.Backpack:GetChildren()) do
+        if tool:IsA("Tool") and tool:GetAttribute("WeaponType") == "Melee" then
+            if humanoid then humanoid:EquipTool(tool) end
+            return true
+        end
+    end
+    return false
+end
+
+function Halloween.PumpkinReachable(position)
+    if position.Y < -100 then return false end
+    if Sea1 and math.abs(position.X - 61147) < 3000 and math.abs(position.Z - 1366) < 3000 then return false end
+    if Sea2 and math.abs(position.X - 937) < 2000 and math.abs(position.Z - 32879) < 2000 then return false end
+    return true
+end
+
+function Halloween.NearestPumpkin(origin)
+    local folder = Workspace:FindFirstChild("PumpkinHunt")
+    if not folder then return nil, false, false end
+    local now = os.clock()
+    local children = folder:GetChildren()
+    local nearest, best, bestRare, rarePresent = nil, nil, false, false
+    local ready = #children > 0
+    for _, pumpkin in ipairs(children) do
+        local rare = pumpkin:GetAttribute("PumpkinRare") == true
+        if pumpkin.Name == "Pumpkin" or rare then
+            local root = pumpkin:FindFirstChild("RootPart")
+            local state = pumpkin:GetAttribute("PumpkinState")
+            if not root or state == nil then ready = false end
+            if rare and (not root or Halloween.PumpkinReachable(root.Position)) then rarePresent = true end
+            if root and Halloween.PumpkinReachable(root.Position) and state == "Idle" and (_G.AutoPumpkin or rare)
+                and (not (_G.AutoRarePumpkin and _G.AutoRarePumpkinHop) or rare)
+                and (Halloween.PumpkinSkip[pumpkin] or 0) < now then
+                local dist = (root.Position - origin).Magnitude
+                if not best or (rare and not bestRare) or (rare == bestRare and dist < best) then
+                    nearest, best, bestRare = pumpkin, dist, rare
+                end
+            end
+        end
+    end
+    return nearest, rarePresent, ready
+end
+
+-- 目前伺服器最近的稀有南瓜 (情況 B：有稀有南瓜時優先刷取)
+function Halloween.NearestRarePumpkin(origin)
+    local folder = Workspace:FindFirstChild("PumpkinHunt")
+    if not folder then return nil end
+    local now = os.clock()
+    local nearest, best
+    for _, pumpkin in ipairs(folder:GetChildren()) do
+        if pumpkin:GetAttribute("PumpkinRare") == true then
+            local root = pumpkin:FindFirstChild("RootPart")
+            if root and pumpkin:GetAttribute("PumpkinState") == "Idle"
+                and Halloween.PumpkinReachable(root.Position) and (Halloween.PumpkinSkip[pumpkin] or 0) < now then
+                local dist = (root.Position - origin).Magnitude
+                if not best or dist < best then nearest, best = pumpkin, dist end
+            end
+        end
+    end
+    return nearest
+end
+
+function Halloween.NearbyJack(origin)
+    local nearest, best, bestRare
+    for _, name in ipairs({ "Enemies", "PumpkinHunt" }) do
+        local folder = Workspace:FindFirstChild(name)
+        if folder then
+            for _, mob in ipairs(folder:GetChildren()) do
+                local rare = mob.Name == Halloween.SnowmanName
+                local wanted = rare or (_G.AutoPumpkin and not (_G.AutoRarePumpkin and _G.AutoRarePumpkinHop) and mob.Name == Halloween.JackName)
+                local root = wanted and mob:FindFirstChild("HumanoidRootPart")
+                if root and Halloween.PumpkinReachable(root.Position) and Attack.Alive(mob) then
+                    local dist = (root.Position - origin).Magnitude
+                    if (rare and _G.AutoRarePumpkin or dist < 100)
+                        and (not best or (rare and not bestRare) or (rare == bestRare and dist < best)) then
+                        nearest, best, bestRare = mob, dist, rare
+                    end
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+function Halloween.ClickAttack(root)
+    local hrp = GetHRP()
+    if hrp then
+        pcall(function()
+            hrp.CFrame = CFrame.lookAt(hrp.Position, Vector3.new(root.Position.X, hrp.Position.Y, root.Position.Z))
+        end)
+    end
+    pcall(function()
+        local size = Workspace.CurrentCamera.ViewportSize
+        VirtualInputManager:SendMouseButtonEvent(size.X / 2, size.Y / 2, 0, true, game, 1)
+        task.wait(0.05)
+        VirtualInputManager:SendMouseButtonEvent(size.X / 2, size.Y / 2, 0, false, game, 1)
+    end)
+end
+
+function Halloween.HitPumpkin(pumpkin)
+    local root = pumpkin:FindFirstChild("RootPart")
+    if not root then return false end
+    local key = tostring(LocalPlayer.UserId):sub(2, 4) .. tostring(coroutine.running()):sub(11, 15)
+    local startHits = pumpkin:GetAttribute("PumpkinHits") or 0
+    for attempt = 1, 10 do
+        if not Halloween.PumpkinActive() or not pumpkin.Parent or pumpkin:GetAttribute("PumpkinState") ~= "Idle" then
+            return true
+        end
+        local progressed = (pumpkin:GetAttribute("PumpkinHits") or 0) > startHits
+        if attempt <= 4 or progressed then
+            pcall(function()
+                RegisterAttack:FireServer()
+                RegisterHit:FireServer(root, { { pumpkin, root } }, {}, key)
+            end)
+            if AttackObfuscatedRemote and AttackObfuscatedId then
+                pcall(function()
+                    local salt = math.floor(Workspace:GetServerTimeNow() / 10 % 10) + 1
+                    local name = string.gsub("RE/RegisterHit", ".", function(c) return string.char(bit32.bxor(string.byte(c), salt)) end)
+                    local id = bit32.bxor(AttackObfuscatedId + 909090, Attack_GetSeed() * 2)
+                    Attack_Clone(AttackObfuscatedRemote):FireServer(name, id, root, { { pumpkin, root } })
+                end)
+            end
+        else
+            Halloween.ClickAttack(root)
+        end
+        task.wait(0.35)
+    end
+    return pumpkin:GetAttribute("PumpkinState") ~= "Idle"
+end
+
+function Halloween.PumpkinStep()
+    if not Halloween.PumpkinActive() then Halloween.RareMissingAt = nil; return end
+    local hrp = GetHRP()
+    if not hrp then Halloween.RareMissingAt = nil; return end
+    local pumpkin, rarePresent, scanReady = Halloween.NearestPumpkin(hrp.Position)
+    local rareHop = _G.AutoRarePumpkin and _G.AutoRarePumpkinHop
+    -- 情況 A：開啟自動換服時只找稀有南瓜，普通南瓜不另外刷取
+    -- 情況 B：未開啟自動換服時，有稀有南瓜優先稀有，否則改刷普通南瓜
+    if rareHop and not rarePresent then
+        pumpkin = nil
+    elseif rarePresent and pumpkin and pumpkin:GetAttribute("PumpkinRare") ~= true then
+        pumpkin = Halloween.NearestRarePumpkin(hrp.Position) or pumpkin
+    end
+    local jack = Halloween.NearbyJack(hrp.Position)
+    local snowman = jack and jack.Name == Halloween.SnowmanName
+    if _G.AutoRarePumpkin and _G.AutoRarePumpkinHop and not rarePresent and not snowman
+        and scanReady and tick() >= Halloween.RareHoldUntil then
+        if not Halloween.RareMissingAt then
+            Halloween.RareMissingAt = tick()
+            Notify("萬聖節活動", "未發現稀有南瓜，3 秒後換服", 3)
+        elseif tick() - Halloween.RareMissingAt >= 3 then
+            Halloween.RareMissingAt = nil
+            Halloween.RareHoldUntil = tick() + 15
+            HopServer(true, true, true)
+        end
+        return
+    end
+    Halloween.RareMissingAt = nil
+    if jack and (snowman or not (pumpkin and pumpkin:GetAttribute("PumpkinRare") == true)) then
+        if snowman then Halloween.RareHoldUntil = tick() + 15 end
+        Halloween.PumpkinTarget = jack
+        local ok, err = pcall(KillLoop, jack, Halloween.PumpkinActive)
+        Halloween.PumpkinTarget = nil
+        if snowman then Halloween.RareHoldUntil = tick() + 5 end
+        if not ok then error(err, 0) end
+        return
+    end
+    if not pumpkin then return end
+    local rare = pumpkin:GetAttribute("PumpkinRare") == true
+    if rare then Halloween.RareHoldUntil = tick() + 15 end
+    local root = pumpkin.RootPart
+    if (root.Position - hrp.Position).Magnitude > 8 then
+        _tp(CFrame.new(root.Position + Vector3.new(0, 4, 3)), function() return not Halloween.PumpkinActive() end)
+    end
+    if not Halloween.PumpkinActive() then return end
+    Halloween.EquipMelee()
+    if Halloween.HitPumpkin(pumpkin) then
+        if rare then Halloween.RareHoldUntil = tick() + 15 end
+        task.wait(1.5)
+    else
+        Halloween.RareFailures[pumpkin] = (Halloween.RareFailures[pumpkin] or 0) + 1
+        local exhausted = Halloween.RareFailures[pumpkin] >= 3
+        Halloween.PumpkinSkip[pumpkin] = os.clock() + (exhausted and 120 or 20)
+        if rare then Halloween.RareHoldUntil = tick() + (exhausted and 5 or 22) end
+    end
+end
+
+Halloween.EventMaxSeconds = 90
+
+function Halloween.MatchingGame()
+    local concentration = RS.Controllers and RS.Controllers.UI and RS.Controllers.UI.ConcentrationGame
+    if not concentration then return nil end
+    local ok, game_ = pcall(require, concentration)
+    if ok and type(game_) == "table" and game_.IsOpen and game_:IsOpen() then return game_ end
+    return nil
+end
+
+function Halloween.CellKey(cell)
+    local parts = {}
+    for k, v in pairs(cell) do
+        if k ~= "State" then parts[#parts + 1] = tostring(k) .. "=" .. tostring(v) end
+    end
+    table.sort(parts)
+    return table.concat(parts, ";")
+end
+
+function Halloween.FlipCard(matching, index)
+    if not Halloween.Auto() then return nil end
+    local before = matching:GetBoard()
+    local flips = before and before.FlipCount or -1
+    local root = LocalPlayer.PlayerGui:FindFirstChild("ConcentrationGameRoot")
+    local container = root and root:FindFirstChild("Container", true)
+    local card = container and container:FindFirstChild("Card" .. index)
+    local button = card and card:FindFirstChild("Card")
+    if not button then return nil end
+    Halloween.ClickButton(button)
+    local deadline = os.clock() + 4
+    while os.clock() < deadline and matching:IsOpen() and Halloween.Auto() do
+        local board = matching:GetBoard()
+        if board and board ~= before and board.FlipCount ~= flips then return board end
+        task.wait(0.05)
+    end
+    return matching:GetBoard()
+end
+
+function Halloween.SolveMatching(matching)
+    if Halloween.Solving then
+        while Halloween.Solving and matching:IsOpen() do task.wait(0.2) end
+        return
+    end
+    Halloween.Solving = true
+    local ok, err = pcall(Halloween.SolveBoard, matching)
+    Halloween.Solving = false
+    if not ok then warn("Halloween Matching Error:", err) end
+end
+
+function Halloween.SolveBoard(matching)
+    local known = {}
+    local function learn(board, index)
+        local cell = board and board.Cells[index]
+        if cell and cell.State ~= "Hidden" then known[index] = Halloween.CellKey(cell) end
+    end
+    for _ = 1, 25 do
+        if not matching:IsOpen() or not Halloween.Auto() then return end
+        local board = matching:GetBoard()
+        if not board then return end
+        local open = {}
+        for i, cell in ipairs(board.Cells) do
+            if cell.State ~= "Matched" then open[#open + 1] = i end
+        end
+        if #open == 0 then return end
+        local first, second
+        for x = 1, #open do
+            for y = x + 1, #open do
+                local i, j = open[x], open[y]
+                if known[i] and known[i] == known[j] then first, second = i, j end
+            end
+        end
+        if first then
+            Halloween.FlipCard(matching, first)
+            Halloween.FlipCard(matching, second)
+        else
+            for _, i in ipairs(open) do
+                if not known[i] then first = i break end
+            end
+            if not first then return end
+            learn(Halloween.FlipCard(matching, first), first)
+            for _, i in ipairs(open) do
+                if i ~= first and known[i] and known[i] == known[first] then second = i break end
+            end
+            if not second then
+                for _, i in ipairs(open) do
+                    if i ~= first and not known[i] then second = i break end
+                end
+            end
+            if not second then return end
+            local after = Halloween.FlipCard(matching, second)
+            learn(after, second)
+            if not (after and after.Cells[second] and known[second] == known[first]) then task.wait(2.3) end
+        end
+        task.wait(0.3)
+    end
+end
+
+function Halloween.EntryPrompt(entry)
+    if entry.Prompt and entry.Prompt.Parent then return entry.Prompt end
+    entry.Prompt = Halloween.NearestPrompt(entry.CFrame.Position)
+    entry.Door = entry.Prompt and entry.Prompt:FindFirstAncestor("HalloweenDoor") or entry.Door
+    return entry.Prompt
+end
+
+function Halloween.DoorCooling(entry)
+    local door = entry.Door
+    if not door then return false end
+    if door:GetAttribute("DoorOpen") then return true end
+    local untilAt = door:GetAttribute("CooldownUntil")
+    return typeof(untilAt) == "number" and untilAt > Workspace:GetServerTimeNow()
+end
+
+function Halloween.HandleDoorEvent(door, state)
+    local proximity = door:FindFirstChild("Proximity")
+    local enemies = Workspace:FindFirstChild("Enemies")
+    if proximity and proximity:IsA("BasePart") and enemies and not Halloween.DialogueVisible()
+        and os.clock() - (state.RecallAt or -math.huge) >= 3 and (state.RecallCount or 0) < 3 then
+        for _, mob in ipairs(enemies:GetChildren()) do
+            local root = mob:FindFirstChild("HumanoidRootPart")
+            if root and mob:GetAttribute("LocalEnemy") == LocalPlayer.Name and Attack.Alive(mob)
+                and (root.Position - proximity.Position).Magnitude <= Halloween.DoorRange
+                and root.Position.Y < proximity.Position.Y - 12 then
+                state.RecallAt, state.RecallCount = os.clock(), (state.RecallCount or 0) + 1
+                HalloweenEventRemote:FireServer("RecallDoorMobs", door)
+                break
+            end
+        end
+    end
+    local matching = Halloween.MatchingGame()
+    if matching then
+        Halloween.SolveMatching(matching)
+        return
+    end
+    local folder = RS:FindFirstChild(tostring(door:GetAttribute("EventId")))
+    local sweetRide = folder and folder:FindFirstChild("SweetRide")
+    if sweetRide and sweetRide:IsA("RemoteEvent") then
+        local now = os.clock()
+        if not state.FixAt then
+            state.FixAt = now
+            pcall(sweetRide.FireServer, sweetRide, "Fix")
+        elseif now - state.FixAt >= 2.5 and now - (state.ReturnAt or 0) >= 1 then
+            state.ReturnAt = now
+            pcall(sweetRide.FireServer, sweetRide, "Returned")
+        end
+    end
+end
+
+function Halloween.FireDoorRemotes()
+    pcall(function()
+        local remote = HalloweenEventRemote
+        remote:FireServer("AcceptReward")
+        remote:FireServer("TreatDialogueClosed")
+        remote:FireServer("Parlus")
+        remote:FireServer("ignore")
+        local rf = RS:FindFirstChild("{6306b822-ed5d-426c-b0c1-5cdb809cc7f5}")
+        if rf and rf:FindFirstChild("RemoteFunction") then
+            rf.RemoteFunction:InvokeServer("ignore")
+        end
+    end)
+end
+
+function Halloween.KnockDoor(entry)
+    if not Halloween.Auto() then return end
+    Halloween.PendingDoor = entry
+    if Halloween.IsBossDoor(entry.Door) or (Halloween.BossEntered and Halloween.BossDoor == entry.Door) then Halloween.EnterBoss(entry); return end
+    if entry.StackPaused or not entry.Door or not entry.Door:GetAttribute("DoorOpen") then
+        _tp(entry.CFrame + Vector3.new(0, 3, 0), function() return not Halloween.Auto() end)
+    end
+    if not Halloween.Auto() then entry.StackPaused = Halloween.Paused(); return end
+    entry.StackPaused = nil
+    task.wait(0.2)
+    if not Halloween.Auto() then entry.StackPaused = Halloween.Paused(); return end
+
+    pcall(function()
+        local dialogue = LocalPlayer.PlayerGui.Main.Dialogue
+        if dialogue.Visible then dialogue.Visible = false end
+    end)
+
+    local prompt = Halloween.EntryPrompt(entry)
+    local door = entry.Door
+    if not (prompt and door and fireproximityprompt) then Halloween.PendingDoor = nil; return end
+
+    local opened = door:GetAttribute("DoorOpen") == true
+    if not opened then
+        for _ = 1, 2 do
+            pcall(fireproximityprompt, prompt)
+            local openBy = os.clock() + Halloween.KnockDelay + 1
+            while os.clock() < openBy and Halloween.Auto() and Halloween.InWindow() do
+                if door:GetAttribute("DoorOpen") then opened = true break end
+                task.wait(0.1)
+            end
+            if opened or not Halloween.Auto() or not Halloween.InWindow() then break end
+        end
+    end
+    if not opened then
+        entry.StackPaused = Halloween.Paused()
+        if not entry.StackPaused then Halloween.PendingDoor = nil end
+        return
+    end
+
+    local state = entry.StackState or {}
+    entry.StackState = state
+    local deadline = os.clock() + Halloween.EventMaxSeconds
+    local seen, fired, hiddenAt = state.Seen or false, state.Fired or false, state.HiddenAt
+    while door:GetAttribute("DoorOpen") and os.clock() < deadline and Halloween.Auto() do
+        if Halloween.IsBossDoor(door) then Halloween.EnterBoss(entry); break end
+        Halloween.HandleDoorEvent(door, state)
+        if not Halloween.Auto() then break end
+        if Halloween.DialogueVisible() then
+            seen, hiddenAt = true, nil
+        elseif seen and not fired then
+            hiddenAt = hiddenAt or os.clock()
+            if os.clock() - hiddenAt >= 1.5 then
+                fired = true
+                Halloween.FireDoorRemotes()
+            end
+        end
+        state.Seen, state.Fired, state.HiddenAt = seen, fired, hiddenAt
+        task.wait(0.2)
+    end
+    entry.StackPaused = Halloween.Paused()
+    if not entry.StackPaused then Halloween.PendingDoor = nil; entry.StackState = nil end
+end
+
+-- 敲門主迴圈
+task.spawn(function()
+    while task.wait(0.1) do
+        if Halloween.Auto() and tick() >= (Halloween.BossWarpUntil or 0)
+            and (Halloween.InWindow() or Halloween.PendingDoor or Halloween.BossEntry()) then
+            local remaining = {}
+            for _, entry in ipairs(Halloween.DoorEntries()) do remaining[#remaining + 1] = entry end
+            local knocked = 0
+            while #remaining > 0 or Halloween.PendingDoor or Halloween.BossEntry() do
+                while Halloween.Fighting and Halloween.Auto() do task.wait(0.2) end
+                if not Halloween.Auto() or tick() < (Halloween.BossWarpUntil or 0)
+                    or (not Halloween.InWindow() and not Halloween.PendingDoor and not Halloween.BossEntry()) then break end
+                local hrp = GetHRP()
+                local origin = hrp and hrp.Position or Vector3.zero
+                local pick, best = 1, math.huge
+                for idx, item in ipairs(remaining) do
+                    local dist = (item.CFrame.Position - origin).Magnitude
+                    if dist < best then pick, best = idx, dist end
+                end
+                local entry = Halloween.BossEntry() or Halloween.PendingDoor or table.remove(remaining, pick)
+                if Halloween.IsBossDoor(entry.Door) or Halloween.PendingDoor == entry or not Halloween.DoorCooling(entry) then
+                    knocked = knocked + 1
+                    Halloween.Knocking = true
+                    local okDoor, errDoor = pcall(Halloween.KnockDoor, entry)
+                    Halloween.Knocking = false
+                    if not okDoor then warn("Halloween Door Error:", errDoor) end
+                    task.wait(Halloween.TrickDelay)
+                end
+            end
+            if knocked == 0 then task.wait(2) end
+        end
+    end
+end)
+
+-- 對話選項
+task.spawn(function()
+    while task.wait(0.3) do
+        if Halloween.Auto() and Halloween.Knocking then
+            pcall(Halloween.PickFirstOption)
+        end
+    end
+end)
+
+-- 記憶翻牌
+task.spawn(function()
+    while task.wait(0.5) do
+        if Halloween.Auto() and not Halloween.Solving then
+            local matching = Halloween.MatchingGame()
+            if matching then Halloween.SolveMatching(matching) end
+        end
+    end
+end)
+
+-- 自動刷南瓜
+Halloween.PumpkinBusy = false
+task.spawn(function()
+    while task.wait(0.3) do
+        if (_G.AutoPumpkin or _G.AutoRarePumpkin) and Halloween.PumpkinActive() then
+            Halloween.PumpkinBusy = true
+            local ok, err = pcall(Halloween.PumpkinStep)
+            Halloween.PumpkinBusy = false
+            if not ok then
+                warn("Halloween Pumpkin Error:", err)
+                task.wait(1)
+            end
+        else
+            Halloween.PumpkinBusy = false
+        end
+    end
+end)
+
+-- 全自動萬聖節戰鬥
+task.spawn(function()
+    while task.wait(0.5) do
+        if Halloween.Auto() then
+            local ok, err = pcall(function()
+                local target = Halloween.FindTarget()
+                if target then
+                    Halloween.Fighting, Halloween.Target = true, target
+                    ClearBringJobs()
+                    KillLoop(target, function()
+                        local root = target:FindFirstChild("HumanoidRootPart")
+                        return Halloween.Auto() and not Halloween.BossDead and tick() >= (Halloween.BossWarpUntil or 0) and target.Parent ~= nil and root ~= nil
+                            and (not Halloween.FloorY or root.Position.Y >= Halloween.FloorY - 12)
+                    end)
+                end
+            end)
+            Halloween.Fighting, Halloween.Target, Halloween.FloorY = false, nil, nil
+            if not ok then
+                warn("Halloween Fight Error:", err)
+                task.wait(1)
+            end
+        end
+    end
+end)
+
+-- 南瓜 Boss
+Halloween.PumpkinBoss = { Busy = false, NextCheck = 0, State = "Idle" }
+
+function Halloween.PumpkinBoss.Arena()
+    local map = Workspace:FindFirstChild("Map")
+    return map and map:FindFirstChild("DapperJackArena")
+end
+
+function Halloween.PumpkinBoss.Inside(arena)
+    arena = arena or Halloween.PumpkinBoss.Arena()
+    local center, root = arena and arena:GetAttribute("ArenaCenter"), GetHRP()
+    if typeof(center) ~= "Vector3" or not root then return false end
+    local delta = root.Position - center
+    return Vector3.new(delta.X, 0, delta.Z).Magnitude <= 360 and math.abs(delta.Y) <= 420
+end
+
+-- 是否已離開競技場 (用於判斷上一輪 BOSS 是否結束)
+function Halloween.PumpkinBoss.Outside(arena)
+    arena = arena or Halloween.PumpkinBoss.Arena()
+    local center, root = arena and arena:GetAttribute("ArenaCenter"), GetHRP()
+    if not arena or typeof(center) ~= "Vector3" or not root then return false end
+    local delta = root.Position - center
+    return Vector3.new(delta.X, 0, delta.Z).Magnitude > 360 or math.abs(delta.Y) > 420
+end
+
+function Halloween.PumpkinBoss.Tagged(tag, name)
+    for _, object in ipairs(CollectionService:GetTagged(tag)) do
+        if object:IsDescendantOf(Workspace) then return object end
+    end
+    return name and Workspace:FindFirstChild(name)
+end
+
+function Halloween.PumpkinBoss.Ready(info)
+    if type(info) ~= "table" or not info.Open then return false end
+    if info.Active then return true end
+    if info.Busy or type(info.Costs) ~= "table" then return false end
+    local count = 0
+    for _, cost in pairs(info.Costs) do
+        if type(cost) ~= "table" or not tonumber(cost.Have) or not tonumber(cost.Amount) or tonumber(cost.Have) < tonumber(cost.Amount) then return false end
+        count = count + 1
+    end
+    return count > 0
+end
+
+function Halloween.PumpkinBoss.Loot(arena)
+    local center, root = arena:GetAttribute("ArenaCenter"), GetHRP()
+    if typeof(center) ~= "Vector3" or not root then return nil, 0 end
+    local nearest, distance, count = nil, math.huge, 0
+    for _, folder in ipairs(CollectionService:GetTagged("HalloweenCandySpill")) do
+        local owner, origin = folder:GetAttribute("SpillOwner"), folder:GetAttribute("SpillOrigin")
+        if folder:IsDescendantOf(Workspace) and (owner == nil or owner == LocalPlayer.UserId)
+            and typeof(origin) == "Vector3" and (origin - center).Magnitude <= 700 then
+            for name, position in pairs(folder:GetAttributes()) do
+                local id = name:match("^Candy_(%d+)$") or name:match("^Chest_.+_(%d+)$")
+                if id and typeof(position) == "Vector3" then
+                    count = count + 1
+                    local dist = (root.Position - position).Magnitude
+                    if dist < distance then
+                        nearest, distance = { Folder = folder, Attribute = name, Id = tonumber(id), Position = position }, dist
+                    end
+                end
+            end
+        end
+    end
+    return nearest, count
+end
+
+function Halloween.PumpkinBoss.Collect(arena, active)
+    local item, count = Halloween.PumpkinBoss.Loot(arena)
+    if not item then return count end
+    local function cancelled()
+        return not active() or not item.Folder.Parent or item.Folder:GetAttribute(item.Attribute) == nil
+    end
+    _tp(CFrame.new(item.Position + Vector3.new(0, 2, 0)), cancelled)
+    ReleaseHover()
+    local root = GetHRP()
+    if not cancelled() and root then
+        local delta = root.Position - item.Position
+        if Vector3.new(delta.X, 0, delta.Z).Magnitude <= 7 and math.abs(delta.Y) <= 14 then
+            HalloweenEventRemote:FireServer("CandySpillClaim", item.Folder.Name, item.Id)
+            local deadline = tick() + 1
+            while not cancelled() and tick() < deadline do task.wait(0.1) end
+        end
+    end
+    return count
+end
+
+function Halloween.PumpkinBoss.Leave(active)
+    local state = Halloween.PumpkinBoss
+    local arena = state.Arena()
+    if not arena or not state.Inside(arena) then return true end
+    -- 上一輪已結束且仍留在競技場：走出場地後才能重新召喚
+    local opened = arena:GetAttribute("PortalOpen") == true
+    local core
+    if opened then
+        local portal = arena:FindFirstChild("ExitPortal")
+        core = portal and portal:FindFirstChild("Core")
+    end
+    if not (core and core:IsA("BasePart")) then
+        -- 沒有可用出口時直接傳送到鍋台，讓伺服器把玩家移出競技場
+        local cauldron = state.Tagged("DapperJackCauldron")
+        if cauldron then
+            _tp(cauldron:GetPivot() + Vector3.new(0, 3, 5), function() return not active() or state.Outside(arena) end)
+            ReleaseHover()
+        end
+    else
+        _tp(core.CFrame, function() return not active() or state.Outside(arena) end)
+        ReleaseHover()
+        local root = GetHRP()
+        if active() and root and state.Inside(arena) and (root.Position - core.Position).Magnitude < 10 and firetouchinterest then
+            pcall(function() firetouchinterest(root, core, 0); firetouchinterest(root, core, 1) end)
+        end
+    end
+    local deadline = tick() + 8
+    while active() and tick() < deadline do
+        if state.Outside(arena) then return true end
+        task.wait(0.2)
+    end
+    return state.Outside(arena)
+end
+
+function Halloween.PumpkinBoss.Enter(active)
+    local state = Halloween.PumpkinBoss
+    local arena = state.Arena()
+    if state.Inside(arena) then
+        -- 上一輪已打完 (場地已清空) 時先離開，讓同一個伺服器可以再次召喚
+        if arena and arena:GetAttribute("ArenaState") == "Cleared" then
+            if not state.Leave(active) then return false end
+        else
+            return true
+        end
+    end
+    local cauldron = state.Tagged("DapperJackCauldron")
+    if not cauldron then return false end
+    if not ForceUnseat(3, active) then return false end
+    _tp(cauldron:GetPivot() + Vector3.new(0, 3, 5), function() return not active() end)
+    if not active() then return false end
+    local remote = RS.Remotes:FindFirstChild("DapperJackRitual")
+    if not remote then return false end
+    local info = remote:InvokeServer("Status")
+    state.StatusCache, state.StatusAt = nil, 0
+    if type(info) ~= "table" or not info.Open then return false end
+    if not info.Active then
+        if info.Busy then return false end
+        if not state.Ready(info) then return false end
+        local result = remote:InvokeServer("Summon")
+        if result ~= "Started" and result ~= "Active" and result ~= "Busy" then
+            return false
+        end
+    end
+    local deadline, enteredAt = tick() + 45, 0
+    while active() and tick() < deadline do
+        if state.Inside() then return true end
+        local gateway = state.Tagged("DapperJackGateway", "DapperJackGateway")
+        local prompt = gateway and gateway:FindFirstChildWhichIsA("ProximityPrompt", true)
+        local part = gateway and (gateway:FindFirstChild("Part") or gateway:FindFirstChildWhichIsA("BasePart", true))
+        if part and tick() - enteredAt >= 5 then
+            _tp(part.CFrame, function() return not active() or state.Inside() or not gateway.Parent end)
+            ReleaseHover()
+            local root = GetHRP()
+            if active() and root and gateway.Parent and (root.Position - part.Position).Magnitude <= 10 then
+                enteredAt = tick()
+                if prompt and prompt.Enabled and fireproximityprompt then pcall(fireproximityprompt, prompt) end
+                if not state.Inside() then HalloweenEventRemote:FireServer("DapperJackArenaEnter") end
+            end
+        end
+        task.wait(0.25)
+    end
+    return false
+end
+
+function Halloween.PumpkinBoss.Round(active)
+    local state, clearedAt, quietAt, cardAt = Halloween.PumpkinBoss, nil, nil, nil
+    local deadline, character = tick() + 900, LocalPlayer.Character
+    local bossMissingAt = nil
+    while active() and tick() < deadline do
+        local arena = state.Arena()
+        local hum = GetHumanoid()
+        if not hum or hum.Health <= 0 or LocalPlayer.Character ~= character then return end
+        if not state.Inside(arena) then return end
+        if arena:GetAttribute("ArenaState") == "Cleared" then
+            bossMissingAt = nil
+            clearedAt = clearedAt or tick()
+            local pending = state.Collect(arena, active)
+            if pending > 0 then quietAt = nil
+            else
+                quietAt = quietAt or tick()
+                if not cardAt then
+                    HalloweenEventRemote:FireServer("DapperJackCardClaim")
+                    cardAt = tick()
+                end
+                if tick() - quietAt >= 5 and tick() - clearedAt >= 8 and arena:GetAttribute("PortalOpen") == true then
+                    local portal = arena:FindFirstChild("ExitPortal")
+                    local core = portal and portal:FindFirstChild("Core")
+                    if core and core:IsA("BasePart") then
+                        _tp(core.CFrame, function() return not active() or not state.Inside(arena) end)
+                        ReleaseHover()
+                        local root = GetHRP()
+                        if active() and root and state.Inside(arena) and (root.Position - core.Position).Magnitude < 10 and firetouchinterest then
+                            pcall(function() firetouchinterest(root, core, 0); firetouchinterest(root, core, 1) end)
+                        end
+                        task.wait(2)
+                    end
+                end
+            end
+        else
+            local boss = Workspace:FindFirstChild("Dapper Jack", true)
+            if boss and Attack.Alive(boss) then
+                bossMissingAt = nil
+                Halloween.Target, Halloween.FloorY = boss, arena:GetAttribute("ArenaCenter").Y
+                KillLoop(boss, function() return active() and state.Inside(arena) end,
+                    function() return arena:GetAttribute("ArenaState") == "Cleared" end, false, true)
+                Halloween.Target, Halloween.FloorY = nil, nil
+            else
+                -- 場地未清空卻找不到 BOSS (卡 bug / Boss 消失)，持續 8 秒後自動退出
+                bossMissingAt = bossMissingAt or tick()
+                if tick() - bossMissingAt >= 8 then
+                    Halloween.Target, Halloween.FloorY = nil, nil
+                    state.Leave(active)
+                    return
+                end
+            end
+        end
+        task.wait(0.25)
+    end
+end
+
+function Halloween.PumpkinBoss.Run()
+    local state = Halloween.PumpkinBoss
+    if not _G.AutoPumpkinBoss or state.Busy or Halloween.Knocking or Halloween.BossEntered or HopPending then return end
+    -- 整點活動期間不搶占，待 XX:00~XX:10 結束後重新判斷
+    if Halloween.EventOwns() then return end
+    if not Halloween.BossGate() then return end
+    local sched = Halloween.Scheduler
+    if tick() < state.NextCheck then return end
+    -- 召喚材料足夠：通知南瓜刷取讓出執行權，等它停下後再召喚 (優先 BOSS)
+    if not sched.BossPending then
+        sched.BossPending = true
+        -- 中止南瓜刷取正在進行的移動，讓 BOSS 流程能立即接手
+        StopTween()
+        ReleaseHover()
+        Halloween.PumpkinTarget = nil
+    end
+    if Halloween.PumpkinBusy then return end
+    state.Busy, state.NextCheck = true, tick() + 10
+    local function active() return _G.AutoPumpkinBoss == true end
+    local ok, err = pcall(function()
+        if not active() or Halloween.Knocking or Halloween.EventOwns() then return end
+        HopCancelPending()
+        StopTween(); ClearBringJobs(); ReleaseHover()
+        task.wait(0.5)
+        if not active() then return end
+        if state.Enter(active) then state.Round(active) end
+    end)
+    Halloween.Target, Halloween.FloorY = nil, nil
+    state.Busy = false
+    state.StatusCache, state.StatusAt = nil, 0
+    -- BOSS 完成後恢復：解除搶占，南瓜刷取重新判斷時間 / 伺服器狀態 / 自動換服元件
+    sched.BossPending = false
+    Halloween.RareHoldUntil, Halloween.RareMissingAt = 0, nil
+    if not ok then warn("[Pumpkin Boss] " .. tostring(err)) end
+end
+
+function Halloween.PumpkinBoss.Status()
+    local state = Halloween.PumpkinBoss
+    local cached = state.StatusCache
+    if cached and tick() - (state.StatusAt or 0) < 0.5 then return cached end
+    local remote = RS.Remotes:FindFirstChild("DapperJackRitual")
+    if not remote then return nil end
+    local ok, info = pcall(function() return remote:InvokeServer("Status") end)
+    if not ok or type(info) ~= "table" then return nil end
+    state.StatusCache, state.StatusAt = info, tick()
+    return info
+end
+
+Halloween.PumpkinBoss.Init = true
+
+task.spawn(function()
+    while task.wait(1) do
+        pcall(Halloween.BossGate)
+        pcall(Halloween.PumpkinBoss.Run)
+    end
+end)
+
+----------------------------------------
+-- 選擇陣營
+----------------------------------------
+local function SelectTeam()
+    if not LocalPlayer.Team or LocalPlayer.Team.Name ~= _G.SelectTeam then
+        pcall(function()
+            CommF:InvokeServer("SetTeam2", _G.SelectTeam)
+        end)
+    end
+end
+
+SelectTeam()
+
+--Auto Buso
+task.spawn(function()
+    while task.wait(1) do
+        if _G.AutoBusoEnabled then
+            local character = LocalPlayer.Character
+            if character and not character:FindFirstChild("HasBuso") then
+                pcall(function()
+                    CommF:InvokeServer("Buso")
+                end)
+            end
+        end
+    end
+end)
+
+--超低配模式
+local function LowCpu()
+    local decalsyeeted = true
+    local g = game
+    local w = g.Workspace
+    local l = g.Lighting
+    local t = w.Terrain
+    t.WaterWaveSize = 0
+    t.WaterWaveSpeed = 0
+    t.WaterReflectance = 0
+    t.WaterTransparency = 0
+    l.GlobalShadows = false
+    l.FogEnd = 9e9
+    l.Brightness = 0
+    settings().Rendering.QualityLevel = "Level01"
+    for i, v in pairs(g:GetDescendants()) do
+        if v:IsA("Part") or v:IsA("Union") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") then
+            v.Material = Enum.Material.Plastic
+            v.Reflectance = 0
+        elseif (v:IsA("Decal") or v:IsA("Texture")) and decalsyeeted then
+            v.Transparency = 1
+        elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+            v.Lifetime = NumberRange.new(0)
+        elseif v:IsA("Explosion") then
+            v.BlastPressure = 1
+            v.BlastRadius = 1
+        elseif v:IsA("Fire") or v:IsA("SpotLight") or v:IsA("Smoke") or v:IsA("Sparkles") then
+            v.Enabled = false
+        elseif v:IsA("MeshPart") then
+            v.Material = Enum.Material.Plastic
+            v.Reflectance = 0
+            v.TextureID = 10385902758728957
+        end
+    end
+    for i, e in pairs(l:GetChildren()) do
+        if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") then
+            e.Enabled = false
+        end
+    end
+end
+
+if _G.LowCpuMode then
+    pcall(LowCpu)
+end
+
+-- 自動執行
+local queue_on_teleport = GetQueueOnTeleport()
+if _G.AutoExecute and queue_on_teleport then
+    queue_on_teleport(ScriptLoadstring)
+end
+
+-- Anti AFK
+local function EnableAntiAFK()
+    if _G.AntiAFK_Connection then
+        _G.AntiAFK_Connection:Disconnect()
+        _G.AntiAFK_Connection = nil
+    end
+
+    if getconnections then
+        for _, conn in pairs(getconnections(LocalPlayer.Idled)) do
+            conn:Disable()
+        end
+    end
+
+    _G.AntiAFK_Connection = LocalPlayer.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+end
+
+local function DisableAntiAFK()
+    if _G.AntiAFK_Connection then
+        _G.AntiAFK_Connection:Disconnect()
+        _G.AntiAFK_Connection = nil
+    end
+end
+
+if _G.AntiAFK_ENABLED then
+    EnableAntiAFK()
+end
+
+
+--------------------------
+-- UI 分頁與元件
+--------------------------
+local Tabs = {
+    Auto      = Window:Tab({ Title = L("萬聖節活動"), Icon = "ghost" }),
+    Config    = Window:Tab({ Title = L("配置"), Icon = "wrench" }),
+    Settings  = Window:Tab({ Title = L("設定"),   Icon = "settings" })
+}
+
+Tabs.Auto:Section({ Title = L("萬聖節") })
+
+Tabs.Auto:Toggle({
+    Title = L("自動整點活動"),
+    Desc = "XX:00~XX:10",
+    Value = _G.HalloweenAuto,
+    Callback = function(state)
+        _G.HalloweenAuto = state
+        if not state then
+            ReleaseHover()
+            StopTween()
+        end
+    end
+})
+
+Tabs.Auto:Toggle({
+    Title = L("萬聖節扭蛋"),
+    Value = _G.AutoHalloweenGacha,
+    Callback = function(state)
+        _G.AutoHalloweenGacha = state
+        if state then
+            task.spawn(Halloween.PullGacha)
+        end
+    end
+})
+
+Tabs.Auto:Toggle({
+    Title = L("自動存果實"),
+    Value = _G.AutoStoreFruit,
+    Callback = function(v)
+        _G.AutoStoreFruit = v
+    end
+})
+
+Tabs.Auto:Section({ Title = L("南瓜") })
+
+Tabs.Auto:Toggle({
+    Title = L("自動刷南瓜（普通＋稀有）"),
+    Value = _G.AutoPumpkin,
+    Callback = function(state)
+        _G.AutoPumpkin = state
+        if not state then
+            ReleaseHover()
+            StopTween()
+        end
+    end
+})
+
+Tabs.Auto:Toggle({
+    Title = L("自動刷稀有南瓜（僅稀有）"),
+    Value = _G.AutoRarePumpkin,
+    Callback = function(state)
+        _G.AutoRarePumpkin = state
+        Halloween.RareHoldUntil, Halloween.RareMissingAt = 0, nil
+        if not state then
+            HopCancelPending()
+            ReleaseHover()
+            StopTween()
+        end
+    end
+})
+
+Tabs.Auto:Toggle({
+    Title = L("找不到稀有南瓜自動跳服"),
+    Value = _G.AutoRarePumpkinHop,
+    Callback = function(state)
+        _G.AutoRarePumpkinHop = state
+        Halloween.RareMissingAt = nil
+        if not state then HopCancelPending() end
+    end
+})
+
+Tabs.Auto:Toggle({
+    Title = L("自動召喚並擊殺南瓜 Boss"),
+    Value = _G.AutoPumpkinBoss,
+    Callback = function(state)
+        _G.AutoPumpkinBoss = state
+        Halloween.PumpkinBoss.NextCheck = 0
+        if not state and Halloween.PumpkinBoss.Busy then StopTween(); ReleaseHover() end
+    end
+})
+
+Tabs.Config:Section({ Title = L("配置") })
+
+Tabs.Config:Dropdown({
+    Title = L("選擇陣營"),
+    Values = { "海賊", "海軍" },
+    Value = _G.SelectTeam == "Pirates" and "海賊" or "海軍",
+    Callback = function(v)
+        _G.SelectTeam = v == "海賊" and "Pirates" or "Marines"
+        SelectTeam()
+    end,
+})
+
+Tabs.Config:Dropdown({
+    Title = L("選擇武器"),
+    Values = { "近戰", "劍", "槍械", "惡魔果實" },
+    Value = ({ Melee = "近戰", Sword = "劍", Gun = "槍械", ["Blox Fruit"] = "惡魔果實" })[_G.ChooseWP] or "近戰",
+    Callback = function(v)
+        v = type(v) == "table" and v[1] or v
+        _G.ChooseWP = ({ ["近戰"] = "Melee", ["劍"] = "Sword", ["槍械"] = "Gun", ["惡魔果實"] = "Blox Fruit" })[v] or "Melee"
+        SyncSelectWeapon()
+    end,
+})
+
+Tabs.Config:Toggle({
+    Title    = L("自動攻擊"),
+    Value    = _G.FastAttack,
+    Callback = function(v)
+        _G.FastAttack = v
+        if _G.FastAttack then
+            stopManual()
+        else
+            startManual()
+        end
+    end
+})
+
+Tabs.Config:Toggle({
+    Title    = L("自動武裝色"),
+    Value    = _G.AutoBusoEnabled,
+    Callback = function(v)
+        _G.AutoBusoEnabled = v
+    end
+})
+
+Tabs.Config:Toggle({
+    Title = L("自動見聞色"),
+    Value = _G.AutoKenSilent,
+    Callback = function(v)
+        _G.AutoKenSilent = v
+    end
+})
+
+Tabs.Config:Toggle({
+    Title = L("聚怪"),
+    Value = _G.BringMobs,
+    Callback = function(v)
+        if v then StartBringMobs() else StopBringMobs() end
+    end
+})
+
+Tabs.Settings:Section({ Title = L("語言") })
+
+Tabs.Settings:Dropdown({
+    Title = L("語言"),
+    Values = { "中文", "English" },
+    Value = _G.Language,
+    Callback = function(value)
+        _G.Language = value
+        task.defer(TranslationState.RefreshVisibleLanguage)
+        task.delay(0.3, TranslationState.RefreshVisibleLanguage)
+        task.delay(1, TranslationState.RefreshVisibleLanguage)
+        WindUI:Notify({ Title = L("語言"), Content = _G.Language == "English" and L("語言已切換為: English") or L("語言已切換為: 中文"), Duration = 3 })
+        if _G.Language == "English" then
+            TranslationState.StartWatch()
+        end
+    end
+})
+
+Window:CreateTopbarButton("Translation", "languages", function()
+    pcall(function() Tabs.Settings:Select() end)
+    pcall(function() Window:SelectTab(Tabs.Settings) end)
+    task.defer(function()
+        local roots = {}
+        pcall(function() roots[#roots + 1] = game:GetService("CoreGui") end)
+        pcall(function() roots[#roots + 1] = LocalPlayer:FindFirstChildOfClass("PlayerGui") end)
+        for _, root in ipairs(roots) do
+            if root then
+                for _, item in ipairs(root:GetDescendants()) do
+                    if (item:IsA("TextButton") or item:IsA("TextLabel"))
+                        and (item.Text == "語言" or item.Text == "Language") then
+                        local node = item
+                        for _ = 1, 4 do
+                            if not node or not node.Parent then break end
+                            if node:IsA("GuiButton") then
+                                pcall(function() node:Activate() end)
+                                return
+                            end
+                            node = node.Parent
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end, 1)
+
+Tabs.Settings:Section({ Title = L("重置腳本") })
+
+Tabs.Settings:Button({
+    Title = L("將所有配置恢復初始"),
+    Icon = "trash-2",
+    Desc = L("標記為待重置 下次啟動腳本時改為初始設定"),
+    Callback = function()
+        local ok = pcall(function()
+            if typeof(isfolder) == "function" and typeof(makefolder) == "function" and not isfolder(ConfigFolder) then
+                makefolder(ConfigFolder)
+            end
+            if typeof(writefile) == "function" then
+                writefile(ConfigFile, HttpService:JSONEncode(InitialConfig))
+            end
+        end)
+        
+        if ok then
+            WindUI:Notify({
+                Title = L("配置等待重置"),
+                Content = L("下次啟動腳本後將完全生效 當前功能不受影響"),
+                Duration = 4
+            })
+        else
+            WindUI:Notify({
+                Title = L("重置失敗"),
+                Content = L("無法儲存設定檔 請確認執行器是否支援檔案寫入"),
+                Duration = 4
+            })
+        end
+    end
+})
+
+Tabs.Settings:Section({ Title = L("設定") })
+
+Tabs.Settings:Toggle({
+    Title = L("超低配模式"),
+    Value = _G.LowCpuMode,
+    Callback = function(v)
+        _G.LowCpuMode = v
+        if v then
+            pcall(LowCpu)
+        end
+    end
+})
+
+Tabs.Settings:Toggle({ 
+    Title = L("換服後自動執行"),
+    Value = _G.AutoExecute,
+    Callback = function(v)
+        _G.AutoExecute = v
+        
+        if _G.AutoExecute then
+            if GetQueueOnTeleport() then
+                if typeof(writefile) == "function" then
+                    pcall(function() writefile("AutoEvent.file", "true") end)
+                end
+                GetQueueOnTeleport()(ScriptLoadstring)
+                WindUI:Notify({
+                    Title = L("通知"),
+                    Content = L("已開啟自動執行"),
+                    Duration = 3
+                })
+            else
+                WindUI:Notify({
+                    Title = L("支援錯誤"),
+                    Content = L("你目前的注入器不支援"),
+                    Duration = 3
+                })
+            end
+        else
+            if GetQueueOnTeleport() and typeof(isfile) == "function" and isfile("AutoEvent.file") then
+                delfile("AutoEvent.file")
+            end
+            WindUI:Notify({
+                Title = L("通知"),
+                Content = L("已關閉自動執行"),
+                Duration = 3
+            })
+        end
+    end
+})
+
+Tabs.Settings:Toggle({ 
+    Title    = "Anti AFK", 
+    Desc     = L("防止閒置被踢出"), 
+    Value    = _G.AntiAFK_ENABLED,
+    Callback = function(v) 
+        _G.AntiAFK_ENABLED = v
+        if _G.AntiAFK_ENABLED then 
+            EnableAntiAFK() 
+        else 
+            DisableAntiAFK() 
+        end 
+    end
+})
+
+Tabs.Settings:Keybind({ 
+    Title = L("快捷鍵"), 
+    Desc = L("可更改"), 
+    Value = _G.CurrentKey,
+    Callback = function(v)
+        _G.CurrentKey = v
+        
+        if not _G.KeyDisabled then
+            Window:SetToggleKey(Enum.KeyCode[v])
+        end
+    end
+})
+
+Tabs.Settings:Toggle({
+    Title = L("停用快捷鍵"),
+    Desc = L("開啟後將禁用快捷鍵"),
+    Value = _G.KeyDisabled,
+    Callback = function(state)
+        _G.KeyDisabled = state
+        
+        if state then
+            Window:SetToggleKey(nil)
+        else
+            Window:SetToggleKey(Enum.KeyCode[_G.CurrentKey])
+        end
+    end
+})
+
+-- 初始化狀態
+task.spawn(function()
+    task.wait()
+
+    if _G.AutoExecute then
+        if GetQueueOnTeleport() then
+            if typeof(isfile) == "function" and not isfile("AutoEvent.file") and typeof(writefile) == "function" then
+                pcall(function() writefile("AutoEvent.file", "true") end)
+            end
+            GetQueueOnTeleport()(ScriptLoadstring)
+        end
+    else
+        if GetQueueOnTeleport() and typeof(isfile) == "function" and isfile("AutoEvent.file") then
+            delfile("AutoEvent.file")
+        end
+    end
+end)
+
+-- 依存檔配置啟動各元件 (等同手動開啟開關)
+if _G.AutoHalloweenGacha then
+    task.spawn(Halloween.PullGacha)
+end
+
+if _G.AutoStoreFruit then
+    task.spawn(function()
+        pcall(Tick_AutoStoreFruit)
+    end)
+end
+
+if _G.AutoPumpkinBoss then
+    Halloween.PumpkinBoss.NextCheck = 0
+    pcall(Halloween.BossGate)
+end
+
+if _G.AutoRarePumpkin then
+    Halloween.RareHoldUntil, Halloween.RareMissingAt = 0, nil
+end
+
+if _G.FastAttack then
+    stopManual()
+else
+    startManual()
+end
+
+if _G.BringMobs then
+    StartBringMobs()
+end
+
+if _G.Language == "English" then
+    task.defer(TranslationState.RefreshVisibleLanguage)
+    TranslationState.StartWatch()
+end
