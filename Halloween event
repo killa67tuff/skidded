@@ -1,12 +1,12 @@
 ----------------------------------------
---等待加載
+-- Wait for the game to load
 ----------------------------------------
 repeat
     task.wait()
 until game:IsLoaded() and game:GetService("Players").LocalPlayer
 
 ----------------------------------------
--- 服務
+-- Services
 ----------------------------------------
 local Players = game:GetService("Players")
 local HttpService = game:GetService("HttpService")
@@ -26,7 +26,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 local player = LocalPlayer
 
--- Fast Attack Remote
+-- Attack remotes (RegisterAttack / RegisterHit)
 local RS = ReplicatedStorage
 local Net = RS:WaitForChild("Modules"):WaitForChild("Net")
 local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
@@ -44,14 +44,14 @@ local Sea2 = (PlaceId == 4442272183 or PlaceId == 79091703265657)
 local Sea3 = (PlaceId == 7449423635 or PlaceId == 100117331123089)
 
 ----------------------------------------
--- 防重複啟用
+-- Prevent double execution
 ----------------------------------------
 if getgenv().AutoEvent then
     local StarterGui = game:GetService("StarterGui")
     pcall(function()
         StarterGui:SetCore("SendNotification", {
             Title = "Auto Event",
-            Text = "腳本已在運行中，請勿重複執行！",
+            Text = "The script is already running. Please do not run it again!",
             Duration = 3
         })
     end)
@@ -59,12 +59,25 @@ if getgenv().AutoEvent then
 end
 
 getgenv().AutoEvent = true
+getgenv().AutoEventConfigReady = false
 
 ----------------------------------------
 -- Discord Webhook
 ----------------------------------------
 task.spawn(function()
-    -- 檢查 HTTP 請求 API
+    -- Wait for the config (language) so the webhook text matches the selected language
+    local configDeadline = os.clock() + 10
+    while not getgenv().AutoEventConfigReady and os.clock() < configDeadline do
+        task.wait(0.1)
+    end
+
+    -- Safe translation helper (the translation core loads after this block)
+    local function T(text)
+        if type(L) == "function" then return L(text) end
+        return text
+    end
+
+    -- Check HTTP request API
     local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
     if not requestFunc then return end
 
@@ -75,8 +88,8 @@ task.spawn(function()
 
     local webhookUrl = "https://discord.com/api/webhooks/1571529958856069300/_j5qsOwLZEhcISUCKdHUHz6OO8NBRufowmoNehCJNzxZJwMB9rSwWIdXnTkL098rt3At"
 
-    -- 1. 遊戲名稱與連結
-    local gameName = "未知遊戲"
+    -- 1. Game name and link
+    local gameName = "Unknown Game"
     if game.PlaceId and game.PlaceId > 0 then
         pcall(function()
             local info = MarketplaceService:GetProductInfo(game.PlaceId)
@@ -85,18 +98,18 @@ task.spawn(function()
             end
         end)
     end
-    local gameLink = "[點擊前往遊戲](https://www.roblox.com/games/" .. tostring(game.PlaceId) .. ")"
+    local gameLink = "[Click to play](https://www.roblox.com/games/" .. tostring(game.PlaceId) .. ")"
 
-    -- 2. 設備類型判斷
-    local deviceType = "💻 PC (電腦)"
+    -- 2. Device type detection
+    local deviceType = "PC"
     if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-        deviceType = "📱 Mobile / Tablet (手機/平板)"
+        deviceType = "Mobile / Tablet"
     elseif UserInputService.GamepadEnabled and not UserInputService.KeyboardEnabled then
-        deviceType = "🎮 Console / Gamepad (家機/手把)"
+        deviceType = "Console / Gamepad"
     end
 
-    -- 3. 紀錄與計算執行次數
-    local execCountStr = "1 次"
+    -- 3. Track execution count
+    local execCountStr = "1 time"
     pcall(function()
         local countFolder = "AutoEvent"
         local countFile = countFolder .. "/exec_count.txt"
@@ -117,10 +130,10 @@ task.spawn(function()
             writefile(countFile, tostring(currentCount))
         end
 
-        execCountStr = currentCount .. " 次"
+        execCountStr = currentCount .. " times"
     end)
 
-    -- 4. 取得玩家頭像直鏈
+    -- 4. Fetch player avatar URL
     local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. LocalPlayer.UserId .. "&width=420&height=420&format=png"
     pcall(function()
         local thumbApiUrl = "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" .. LocalPlayer.UserId .. "&size=420x420&format=Png&isCircular=false"
@@ -133,14 +146,14 @@ task.spawn(function()
         end
     end)
 
-    -- 5. 基礎資訊整理
-    local executor = (identifyexecutor and identifyexecutor()) or "未知執行器"
-    local isPremium = (LocalPlayer.MembershipType == Enum.MembershipType.Premium) and "👑 Premium 會員" or "無會員"
-    local accountAge = LocalPlayer.AccountAge .. " 天"
+    -- 5. Basic info
+    local executor = (identifyexecutor and identifyexecutor()) or "Unknown Executor"
+    local isPremium = (LocalPlayer.MembershipType == Enum.MembershipType.Premium) and "Premium Member" or "No membership"
+    local accountAge = LocalPlayer.AccountAge .. " days"
     local localTime = os.date("%Y-%m-%d %H:%M:%S")
-    local profileLink = "[點擊查看主頁](https://www.roblox.com/users/" .. LocalPlayer.UserId .. "/profile)"
+    local profileLink = "[Click to view profile](https://www.roblox.com/users/" .. LocalPlayer.UserId .. "/profile)"
 
-    -- 6. 伺服器人數與玩家名單整理
+    -- 6. Server player count and player list
     local allPlayers = Players:GetPlayers()
     local playerCount = #allPlayers .. " / " .. Players.MaxPlayers
 
@@ -152,21 +165,21 @@ task.spawn(function()
     local playerNamesString = table.concat(playerNamesList, "\n")
 
     if #playerNamesString > 980 then
-        playerNamesString = string.sub(playerNamesString, 1, 950) .. "\n... (已省略過長名單)"
+        playerNamesString = string.sub(playerNamesString, 1, 950) .. "\n... " .. T("(list truncated)")
     end
     if playerNamesString == "" then
-        playerNamesString = "無"
+        playerNamesString = T("None")
     end
 
-    -- 7. 一鍵跟服腳本文字
+    -- 7. One-click join script
     local joinCode = string.format('game:GetService("ReplicatedStorage").__ServerBrowser:InvokeServer("teleport", "%s")', game.JobId)
 
-    -- 8. 建立 Discord Embed
+    -- 8. Build the Discord embed
     local embedData = {
-        ["username"] = "Auto Event監控系統",
+        ["username"] = "Auto Event Monitor",
         ["avatar_url"] = avatarUrl,
         ["embeds"] = {{
-            ["title"] = "腳本執行紀錄(Auto Event)",
+            ["title"] = T("Script Execution Log (Auto Event)"),
             ["color"] = math.random(0, 16777215),
             ["author"] = {
                 ["name"] = LocalPlayer.Name .. " (" .. LocalPlayer.DisplayName .. ")",
@@ -174,33 +187,33 @@ task.spawn(function()
                 ["url"] = "https://www.roblox.com/users/" .. LocalPlayer.UserId .. "/profile"
             },
             ["fields"] = {
-                { ["name"] = "👤 玩家名稱", ["value"] = LocalPlayer.Name .. " (`" .. LocalPlayer.DisplayName .. "`)", ["inline"] = true },
-                { ["name"] = "🆔 玩家 ID", ["value"] = tostring(LocalPlayer.UserId), ["inline"] = true },
-                { ["name"] = "🔗 玩家主頁", ["value"] = profileLink, ["inline"] = true },
+                { ["name"] = T("Username"), ["value"] = LocalPlayer.Name .. " (`" .. LocalPlayer.DisplayName .. "`)", ["inline"] = true },
+                { ["name"] = T("Player ID"), ["value"] = tostring(LocalPlayer.UserId), ["inline"] = true },
+                { ["name"] = T("Profile"), ["value"] = profileLink, ["inline"] = true },
 
-                { ["name"] = "👑 會員身份", ["value"] = isPremium, ["inline"] = true },
-                { ["name"] = "🎂 帳號創立天數", ["value"] = accountAge, ["inline"] = true },
+                { ["name"] = T("Membership"), ["value"] = T(isPremium), ["inline"] = true },
+                { ["name"] = T("Account Age"), ["value"] = T(accountAge), ["inline"] = true },
 
-                { ["name"] = "💻 執行設備", ["value"] = deviceType, ["inline"] = true },
-                { ["name"] = "⚙️ 執行器", ["value"] = executor, ["inline"] = true },
+                { ["name"] = T("Device"), ["value"] = T(deviceType), ["inline"] = true },
+                { ["name"] = T("Executor"), ["value"] = T(executor), ["inline"] = true },
 
-                { ["name"] = "🎮 遊戲名稱", ["value"] = gameName, ["inline"] = true },
-                { ["name"] = "🗺️ Place ID", ["value"] = tostring(game.PlaceId), ["inline"] = true },
-                { ["name"] = "🔗 遊戲連結", ["value"] = gameLink, ["inline"] = true },
+                { ["name"] = T("Game Name"), ["value"] = T(gameName), ["inline"] = true },
+                { ["name"] = T("🗺️ Place ID"), ["value"] = tostring(game.PlaceId), ["inline"] = true },
+                { ["name"] = T("Game Link"), ["value"] = gameLink, ["inline"] = true },
 
-                { ["name"] = "👥 伺服器人數", ["value"] = playerCount, ["inline"] = true },
-                { ["name"] = "🔢 執行紀錄次數", ["value"] = execCountStr, ["inline"] = true },
+                { ["name"] = T("Server Players"), ["value"] = playerCount, ["inline"] = true },
+                { ["name"] = T("Execution Count"), ["value"] = T(execCountStr), ["inline"] = true },
 
-                { ["name"] = "🔑 Job ID", ["value"] = "```" .. (game.JobId ~= "" and game.JobId or "單人/本地伺服器") .. "```", ["inline"] = false },
-                { ["name"] = "📜 伺服器玩家名單", ["value"] = "```\n" .. playerNamesString .. "\n```", ["inline"] = false },
-                { ["name"] = "🔗 一鍵跟服腳本", ["value"] = "```lua\n" .. joinCode .. "\n```", ["inline"] = false }
+                { ["name"] = T("Job ID"), ["value"] = "```" .. (game.JobId ~= "" and game.JobId or "Solo/Local Server") .. "```", ["inline"] = false },
+                { ["name"] = T("Server Player List"), ["value"] = "```\n" .. playerNamesString .. "\n```", ["inline"] = false },
+                { ["name"] = T("Join Script"), ["value"] = "```lua\n" .. joinCode .. "\n```", ["inline"] = false }
             },
             ["thumbnail"] = { ["url"] = avatarUrl },
-            ["footer"] = { ["text"] = "執行時間: " .. localTime }
+            ["footer"] = { ["text"] = T("Executed at: ") .. localTime }
         }}
     }
 
-    -- 發送 Webhook
+    -- Send the webhook
     pcall(function()
         requestFunc({
             Url = webhookUrl,
@@ -214,95 +227,157 @@ task.spawn(function()
 end)
 
 ----------------------------------------
--- 翻譯核心
+-- Translation core (English primary, French optional)
 ----------------------------------------
 TranslationState = {}
-_G.Language = _G.Language or "中文"
+_G.Language = _G.Language or "English"
 TranslationState.Translations = {
-    English = {
-        ["腳本已在運行中，請勿重複執行！"] = "The script is already running. Please do not run it again!",
-        ["語言"] = "Language",
-        ["語言已切換為: English"] = "Language switched to English",
-        ["語言已切換為: 中文"] = "Language switched to Chinese",
-        ["萬聖節活動"] = "Halloween Event",
-        ["配置"] = "Config",
-        ["設定"] = "Settings",
-        ["萬聖節"] = "Halloween",
-        ["自動整點活動"] = "Auto Hourly Event",
-        ["萬聖節扭蛋"] = "Halloween Gacha",
-        ["自動存果實"] = "Auto Store Fruit",
-        ["南瓜"] = "Pumpkin",
-        ["自動刷南瓜（普通＋稀有）"] = "Auto Farm Pumpkin (Normal + Rare)",
-        ["自動刷稀有南瓜（僅稀有）"] = "Auto Farm Rare Pumpkin (Rare Only)",
-        ["找不到稀有南瓜自動跳服"] = "Auto Server Hop If No Rare Pumpkin",
-        ["自動召喚並擊殺南瓜 Boss"] = "Auto Summon & Kill Pumpkin Boss",
-        ["選擇陣營"] = "Select Team",
-        ["海賊"] = "Pirates",
-        ["海軍"] = "Marines",
-        ["選擇武器"] = "Select Weapon",
-        ["近戰"] = "Melee",
-        ["劍"] = "Sword",
-        ["槍械"] = "Gun",
-        ["惡魔果實"] = "Blox Fruit",
-        ["自動攻擊"] = "Auto Attack",
-        ["自動武裝色"] = "Auto Buso",
-        ["自動見聞色"] = "Auto Observation Haki",
-        ["聚怪"] = "Bring Mobs",
-        ["重置腳本"] = "Reset Script",
-        ["將所有配置恢復初始"] = "Restore All Settings To Default",
-        ["標記為待重置 下次啟動腳本時改為初始設定"] = "Marked for reset. Default settings will apply on the next script start.",
-        ["配置等待重置"] = "Config Reset Pending",
-        ["下次啟動腳本後將完全生效 當前功能不受影響"] = "Changes will take full effect the next time the script starts. Current features will not be affected.",
-        ["重置失敗"] = "Reset Failed",
-        ["無法儲存設定檔 請確認執行器是否支援檔案寫入"] = "Unable to save the config file. Check whether your executor supports file writing.",
-        ["超低配模式"] = "Ultra-Low Graphics Mode",
-        ["換服後自動執行"] = "Auto-Execute After Hop",
-        ["通知"] = "Notifications",
-        ["已開啟自動執行"] = "Auto-execution enabled",
-        ["支援錯誤"] = "Unsupported Executor",
-        ["你目前的注入器不支援"] = "Your current executor is not supported",
-        ["已關閉自動執行"] = "Auto-execution disabled",
-        ["防止閒置被踢出"] = "Prevents being kicked for being idle",
-        ["快捷鍵"] = "Hotkey",
-        ["可更改"] = "Changeable",
-        ["停用快捷鍵"] = "Disable Hotkey",
-        ["開啟後將禁用快捷鍵"] = "Disables the hotkey when enabled",
-        ["換服"] = "Server Hop",
-        ["已取消換服"] = "Server hop cancelled",
-        ["換服中 "] = "Hopping to ",
-        ["換服倒數: "] = "Hop countdown: ",
-        ["換服傳送失敗"] = "Server hop teleport failed",
-        ["未取到伺服器列表"] = "Could not fetch the server list",
-        ["沒有找到可用的伺服器"] = "No available servers found",
-        ["未發現稀有南瓜，3 秒後換服"] = "No rare pumpkin found; hopping in 3 seconds",
-        ["已抽取萬聖節扭蛋"] = "Halloween gacha pulled",
-        ["扭蛋抽取失敗"] = "Gacha pull failed",
-        ["扭蛋模組載入失敗"] = "Failed to load the gacha module",
-        ["已開啟"] = "Enabled",
-        ["已關閉"] = "Disabled",
-        ["無"] = "None",
-        ["載入中..."] = "Loading...",
+    French = {
+        ["The script is already running. Please do not run it again!"] = "Le script est déjà en cours d'exécution. Ne le relancez pas !",
+        ["Language"] = "Langue",
+        ["Language switched to English"] = "Langue changée en anglais",
+        ["Language switched to French"] = "Langue changée en français",
+        ["Halloween Event"] = "Événement Halloween",
+        ["Config"] = "Configuration",
+        ["Settings"] = "Paramètres",
+        ["Auto Hourly Event"] = "Événement horaire auto",
+        ["Halloween Gacha"] = "Gacha Halloween",
+        ["Auto Store Fruit"] = "Stockage auto des fruits",
+        ["Pumpkin"] = "Citrouille",
+        ["Auto Farm Pumpkin (Normal + Rare)"] = "Farm auto de citrouilles (Normale + Rare)",
+        ["Auto Farm Rare Pumpkin (Rare Only)"] = "Farm auto de citrouilles rares (Rares seulement)",
+        ["Auto Server Hop If No Rare Pumpkin"] = "Changement de serveur auto si aucune citrouille rare",
+        ["Auto Summon and Kill Pumpkin Boss"] = "Invocation et élimination auto du boss citrouille",
+        ["Select Team"] = "Choisir l'équipe",
+        ["Select Weapon"] = "Choisir l'arme",
+        ["Flagged hit bypass (replaces Fast Attack)"] = "Contournement des hits flagged (remplace l'attaque rapide)",
+        ["Double M1 (Fruit + Sword)"] = "Double M1 (Fruit + Épée)",
+        ["Fires the fruit M1 with every sword M1"] = "Le M1 du fruit part avec chaque M1 d'épée",
+        ["Dragonstorm Aura (Gun)"] = "Aura Dragonstorm (Arme)",
+        ["Shoot with the Dragonstorm gun instead of melee M1"] = "Tire avec l'arme Dragonstorm au lieu du M1 de corps à corps",
+        ["Dragonstorm gun not found in your inventory"] = "Arme Dragonstorm introuvable dans votre inventaire",
+        ["Flagged M1"] = "Flagged M1",
+        ["Auto Buso"] = "Buso auto",
+        ["Auto Observation Haki"] = "Haki d'observation auto",
+        ["Bring Mobs"] = "Rassembler les mobs",
+        ["Reset Script"] = "Réinitialiser le script",
+        ["Restore All Settings To Default"] = "Restaurer tous les paramètres par défaut",
+        ["Marked for reset. Default settings will apply on the next script start."] = "Marqué pour réinitialisation. Les paramètres par défaut s'appliqueront au prochain démarrage du script.",
+        ["Config Reset Pending"] = "Réinitialisation en attente",
+        ["Changes will take full effect the next time the script starts. Current features will not be affected."] = "Les changements prendront effet complet au prochain démarrage du script. Les fonctionnalités actuelles ne seront pas affectées.",
+        ["Reset Failed"] = "Échec de la réinitialisation",
+        ["Unable to save the config file. Check whether your executor supports file writing."] = "Impossible d'enregistrer le fichier de configuration. Vérifiez que votre exécuteur prend en charge l'écriture de fichiers.",
+        ["Ultra-Low Graphics Mode"] = "Mode graphiques ultra bas",
+        ["Auto-Execute After Hop"] = "Exécution auto après changement de serveur",
+        ["Notifications"] = "Notifications",
+        ["Auto-execution enabled"] = "Exécution automatique activée",
+        ["Unsupported Executor"] = "Exécuteur non pris en charge",
+        ["Your current executor is not supported"] = "Votre exécuteur actuel n'est pas pris en charge",
+        ["Auto-execution disabled"] = "Exécution automatique désactivée",
+        ["Prevents being kicked for being idle"] = "Empêche d'être expulsé pour inactivité",
+        ["Hotkey"] = "Raccourci clavier",
+        ["Changeable"] = "Modifiable",
+        ["Disable Hotkey"] = "Désactiver le raccourci",
+        ["Disables the hotkey when enabled"] = "Désactive le raccourci quand il est activé",
+        ["Server Hop"] = "Changement de serveur",
+        ["Server hop cancelled"] = "Changement de serveur annulé",
+        ["Hopping to "] = "Changement vers ",
+        ["Hop countdown: "] = "Compte à rebours : ",
+        [" seconds"] = " secondes",
+        ["Server hop teleport failed"] = "Échec de la téléportation du changement de serveur",
+        ["Could not fetch the server list"] = "Impossible de récupérer la liste des serveurs",
+        ["No available servers found"] = "Aucun serveur disponible trouvé",
+        ["No rare pumpkin found; hopping in 3 seconds"] = "Aucune citrouille rare trouvée ; changement dans 3 secondes",
+        ["Halloween gacha pulled"] = "Gacha Halloween tiré",
+        ["Gacha pull failed"] = "Échec du tirage du gacha",
+        ["Failed to load the gacha module"] = "Échec du chargement du module gacha",
+        ["Enabled"] = "Activé",
+        ["Disabled"] = "Désactivé",
+        ["None"] = "Aucun",
+        ["Loading..."] = "Chargement...",
+        ["Status"] = "Statut",
+        ["Status Panel"] = "Panneau de statut",
+        ["Server time and countdown to the next event"] = "Heure du serveur et compte à rebours vers le prochain événement",
+        ["Server Time: "] = "Heure du serveur : ",
+        ["Event live: ends in "] = "Événement en cours : se termine dans ",
+        ["Next event in "] = "Prochain événement dans ",
+        -- Webhook
+        ["WebHook"] = "Webhook",
+        ["Webhook URL"] = "URL du webhook",
+        ["Ping @everyone or a user ID"] = "Ping @everyone ou un ID utilisateur",
+        ["Ping User ID"] = "ID utilisateur du ping",
+        ["User ID (empty = @everyone)"] = "ID utilisateur (vide = @everyone)",
+        ["Select Rarities"] = "Choisir les raretés",
+        ["No rarity selected, no pings will be sent"] = "Aucune rareté sélectionnée, aucun ping ne sera envoyé",
+        ["Event Start/End Webhook"] = "Webhook début/fin d'événement",
+        ["Sends a webhook when the event starts and ends"] = "Envoie un webhook quand l'événement commence et se termine",
+        ["Boss Spawn, Kill and Drops Webhook"] = "Webhook spawn, kill et drops des boss",
+        ["Sends a webhook on boss spawn, kill and drops"] = "Envoie un webhook au spawn, au kill et aux drops des boss",
+        ["Gacha Roll Webhook"] = "Webhook des tirages gacha",
+        ["Sends a webhook with every gacha roll"] = "Envoie un webhook pour chaque tirage gacha",
+        ["Auto Close Gacha UI"] = "Fermeture auto de l'UI gacha",
+        ["Closes the gacha result window after each pull"] = "Ferme la fenêtre de résultat du gacha après chaque tirage",
+        ["Halloween Event Started"] = "Événement Halloween commencé",
+        ["Halloween Event Ended"] = "Événement Halloween terminé",
+        ["The hourly Halloween event window is now open"] = "La fenêtre horaire de l'événement Halloween est maintenant ouverte",
+        ["The hourly Halloween event window has closed"] = "La fenêtre horaire de l'événement Halloween est fermée",
+        ["Event Window"] = "Fenêtre d'événement",
+        ["Boss Spawned"] = "Boss apparu",
+        ["Boss Killed"] = "Boss éliminé",
+        ["Drops"] = "Drops",
+        ["Possible Drops"] = "Drops possibles",
+        ["No drop detected in the inventory"] = "Aucun drop détecté dans l'inventaire",
+        ["Server Time"] = "Heure du serveur",
+        ["Gacha Result"] = "Résultat du gacha",
+        ["Rarity"] = "Rareté",
+        ["Item"] = "Objet",
+        -- Script execution log
+        ["Script Execution Log (Auto Event)"] = "Journal d'exécution du script (Auto Event)",
+        ["Username"] = "Nom d'utilisateur",
+        ["Player ID"] = "ID du joueur",
+        ["Profile"] = "Profil",
+        ["Membership"] = "Abonnement",
+        ["Premium Member"] = "Membre Premium",
+        ["No membership"] = "Sans abonnement",
+        ["Account Age"] = "Âge du compte",
+        ["Device"] = "Appareil",
+        ["Executor"] = "Exécuteur",
+        ["Unknown Executor"] = "Exécuteur inconnu",
+        ["Game Name"] = "Nom du jeu",
+        ["Unknown Game"] = "Jeu inconnu",
+        ["Mobile / Tablet"] = "Mobile / Tablette",
+        ["Console / Gamepad"] = "Console / Manette",
+        ["🗺️ Place ID"] = "🗺️ ID du lieu",
+        ["Game Link"] = "Lien du jeu",
+        ["Server Players"] = "Joueurs du serveur",
+        ["Execution Count"] = "Nombre d'exécutions",
+        ["Server Player List"] = "Liste des joueurs du serveur",
+        ["Join Script"] = "Script de rejoindre",
+        ["Executed at: "] = "Exécuté à : ",
+        ["(list truncated)"] = "(liste tronquée)",
+        [" times"] = " fois",
+        [" days"] = " jours",
     }
 }
 
 L = function(text)
-    if type(text) ~= "string" or _G.Language ~= "English" then return text end
+    if type(text) ~= "string" or _G.Language ~= "French" then return text end
     local state = TranslationState
     if not state.Index then
         state.Index = {}
-        for zh, en in pairs(state.Translations.English) do state.Index[#state.Index + 1] = { zh = zh, en = en } end
-        table.sort(state.Index, function(x, y) return #x.zh > #y.zh end)
+        for en, fr in pairs(state.Translations.French) do state.Index[#state.Index + 1] = { en = en, fr = fr } end
+        table.sort(state.Index, function(x, y) return #x.en > #y.en end)
         state.Cache = {}
     end
     local cached = state.Cache[text]
     if cached ~= nil then return cached end
-    local exact = state.Translations.English[text]
+    local exact = state.Translations.French[text]
     local result = exact or text
     if not exact then
         for _, entry in ipairs(state.Index) do
-            if entry.zh ~= "" and string.find(result, entry.zh, 1, true) then
-                local escaped = entry.zh:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
-                result = string.gsub(result, escaped, function() return entry.en end)
+            if entry.en ~= "" and string.find(result, entry.en, 1, true) then
+                local escaped = entry.en:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])", "%%%1")
+                result = string.gsub(result, escaped, function() return entry.fr end)
             end
         end
     end
@@ -313,24 +388,24 @@ end
 local ReverseTranslationIndex
 local ReverseTranslationCache = {}
 
-local function TranslateToChinese(text)
+local function TranslateToEnglish(text)
     if type(text) ~= "string" then return text end
     local cached = ReverseTranslationCache[text]
     if cached ~= nil then return cached end
     if not ReverseTranslationIndex then
         ReverseTranslationIndex = {}
-        for zh, en in pairs(TranslationState.Translations.English) do
-            if type(en) == "string" and en ~= "" then
-                ReverseTranslationIndex[#ReverseTranslationIndex + 1] = { en = en, zh = zh }
+        for en, fr in pairs(TranslationState.Translations.French) do
+            if type(fr) == "string" and fr ~= "" then
+                ReverseTranslationIndex[#ReverseTranslationIndex + 1] = { fr = fr, en = en }
             end
         end
-        table.sort(ReverseTranslationIndex, function(a, b) return #a.en > #b.en end)
+        table.sort(ReverseTranslationIndex, function(a, b) return #a.fr > #b.fr end)
     end
     local result = text
     for _, entry in ipairs(ReverseTranslationIndex) do
-        if string.find(result, entry.en, 1, true) then
-            local escaped = entry.en:gsub("([^%w])", "%%%1")
-            result = string.gsub(result, escaped, function() return entry.zh end)
+        if string.find(result, entry.fr, 1, true) then
+            local escaped = entry.fr:gsub("([^%w])", "%%%1")
+            result = string.gsub(result, escaped, function() return entry.en end)
         end
     end
     ReverseTranslationCache[text] = result
@@ -356,11 +431,11 @@ TranslationState.RefreshVisibleLanguage = function()
                         for _, item in ipairs(gui:GetDescendants()) do
                             if item:IsA("TextLabel") or item:IsA("TextButton") or item:IsA("TextBox") then
                                 pcall(function()
-                                    item.Text = _G.Language == "English" and TranslateParts(item.Text) or TranslateToChinese(item.Text)
+                                    item.Text = _G.Language == "French" and TranslateParts(item.Text) or TranslateToEnglish(item.Text)
                                 end)
                                 if item:IsA("TextBox") then
                                     pcall(function()
-                                        item.PlaceholderText = _G.Language == "English" and TranslateParts(item.PlaceholderText) or TranslateToChinese(item.PlaceholderText)
+                                        item.PlaceholderText = _G.Language == "French" and TranslateParts(item.PlaceholderText) or TranslateToEnglish(item.PlaceholderText)
                                     end)
                                 end
                             end
@@ -372,12 +447,13 @@ TranslationState.RefreshVisibleLanguage = function()
     end
 end
 
--- 持續監聽：WindUI 重繪 (切換頁籤 / 展開下拉) 後會還原原文，這裡自動補回翻譯
+-- Keep watching: WindUI redraws (tab switch / dropdown open) restore the original
+-- text, so re-apply the translation automatically while French is selected
 TranslationState.StartWatch = function()
     if TranslationState.Watching then return end
     TranslationState.Watching = true
     task.spawn(function()
-        while _G.Language == "English" do
+        while _G.Language == "French" do
             pcall(TranslationState.RefreshVisibleLanguage)
             task.wait(0.5)
         end
@@ -385,8 +461,311 @@ TranslationState.StartWatch = function()
     end)
 end
 
+----------------------------------------
+-- Discord event webhooks
+----------------------------------------
+do
+    Webhook = {}
+
+    local WebhookRequest = (syn and syn.request) or (http and http.request)
+        or (fluxus and fluxus.request) or http_request or request
+
+    -- Rarity tags used by the ping filter
+    local RarityAliases = {
+        ["mythical"] = "Mythical",
+        ["mythic"] = "Mythical",
+        ["legendary"] = "Legendary",
+        ["legend"] = "Legendary",
+        ["rare"] = "rare",
+        ["uncommon"] = "uncommon",
+        ["common"] = "common",
+    }
+
+    function Webhook.NormalizeRarity(input)
+        if type(input) ~= "string" then return nil end
+        local key = string.gsub(string.lower(input), "%s+", "")
+        return RarityAliases[key]
+    end
+
+    local FruitList = {
+        ["Dragon-West"]         = { name = "Dragon (West) Fruit", rarity = "Mythical" },
+        ["Dragon-East"]         = { name = "Dragon (East) Fruit", rarity = "Mythical" },
+        ["Kitsune-Kitsune"]     = { name = "Kitsune Fruit",       rarity = "Mythical" },
+        ["Tiger-Tiger"]         = { name = "Tiger Fruit",         rarity = "Mythical" },
+        ["Spirit-Spirit"]       = { name = "Spirit Fruit",        rarity = "Mythical" },
+        ["Magnet-Magnet"]       = { name = "Magnet Fruit",        rarity = "Mythical" },
+        ["Control-Control"]     = { name = "Control Fruit",       rarity = "Mythical" },
+        ["Venom-Venom"]         = { name = "Venom Fruit",         rarity = "Mythical" },
+        ["Shadow-Shadow"]       = { name = "Shadow Fruit",        rarity = "Mythical" },
+        ["Dough-Dough"]         = { name = "Dough Fruit",         rarity = "Mythical" },
+        ["T-Rex-T-Rex"]         = { name = "T-Rex Fruit",         rarity = "Mythical" },
+        ["Mammoth-Mammoth"]     = { name = "Mammoth Fruit",       rarity = "Mythical" },
+        ["Gravity-Gravity"]     = { name = "Gravity Fruit",       rarity = "Mythical" },
+        ["Gas-Gas"]             = { name = "Gas Fruit",           rarity = "Mythical" },
+        ["Yeti-Yeti"]           = { name = "Yeti Fruit",          rarity = "Mythical" },
+        ["Leopard-Leopard"]     = { name = "Leopard Fruit",       rarity = "Mythical" },
+        ["Blizzard-Blizzard"]   = { name = "Blizzard Fruit",      rarity = "Legendary" },
+        ["Pain-Pain"]           = { name = "Pain Fruit",          rarity = "Legendary" },
+        ["Lightning-Lightning"] = { name = "Lightning Fruit",     rarity = "Legendary" },
+        ["Portal-Portal"]       = { name = "Portal Fruit",        rarity = "Legendary" },
+        ["Phoenix-Phoenix"]     = { name = "Phoenix Fruit",       rarity = "Legendary" },
+        ["Sound-Sound"]         = { name = "Sound Fruit",         rarity = "Legendary" },
+        ["Spider-Spider"]       = { name = "Spider Fruit",        rarity = "Legendary" },
+        ["Creation-Creation"]   = { name = "Creation Fruit",      rarity = "Legendary" },
+        ["Love-Love"]           = { name = "Love Fruit",          rarity = "Legendary" },
+        ["Buddha-Buddha"]       = { name = "Buddha Fruit",        rarity = "Legendary" },
+        ["Quake-Quake"]         = { name = "Quake Fruit",         rarity = "Legendary" },
+        ["Magma-Magma"]         = { name = "Magma Fruit",         rarity = "rare" },
+        ["Ghost-Ghost"]         = { name = "Ghost Fruit",         rarity = "rare" },
+        ["Rubber-Rubber"]       = { name = "Rubber Fruit",        rarity = "rare" },
+        ["Light-Light"]         = { name = "Light Fruit",         rarity = "rare" },
+        ["String-String"]       = { name = "String Fruit",        rarity = "rare" },
+        ["Barrier-Barrier"]     = { name = "Barrier Fruit",       rarity = "rare" },
+        ["Revival-Revival"]     = { name = "Revival Fruit",       rarity = "rare" },
+        ["Diamond-Diamond"]     = { name = "Diamond Fruit",       rarity = "uncommon" },
+        ["Dark-Dark"]           = { name = "Dark Fruit",          rarity = "uncommon" },
+        ["Sand-Sand"]           = { name = "Sand Fruit",          rarity = "uncommon" },
+        ["Ice-Ice"]             = { name = "Ice Fruit",           rarity = "uncommon" },
+        ["Eagle-Eagle"]         = { name = "Eagle Fruit",         rarity = "uncommon" },
+        ["Flame-Flame"]         = { name = "Flame Fruit",         rarity = "uncommon" },
+        ["Spike-Spike"]         = { name = "Spike Fruit",         rarity = "common" },
+        ["Smoke-Smoke"]         = { name = "Smoke Fruit",         rarity = "common" },
+        ["Bomb-Bomb"]           = { name = "Bomb Fruit",          rarity = "common" },
+        ["Spring-Spring"]       = { name = "Spring Fruit",        rarity = "common" },
+        ["Blade-Blade"]         = { name = "Blade Fruit",         rarity = "common" },
+        ["Spin-Spin"]           = { name = "Spin Fruit",          rarity = "common" },
+        ["Rocket-Rocket"]       = { name = "Rocket Fruit",        rarity = "common" },
+    }
+
+    local FruitByName = {}
+    local function BuildLookupKey(raw)
+        if type(raw) ~= "string" then return nil end
+        local key = string.lower(raw)
+        key = string.gsub(key, "fruit", "")
+        key = string.gsub(key, "[%s_%-%(%)]", "")
+        return key
+    end
+
+    for id, data in pairs(FruitList) do
+        FruitByName[BuildLookupKey(id)] = data
+        FruitByName[BuildLookupKey(data.name)] = data
+    end
+
+    local function FruitRarity(fruitName)
+        if type(fruitName) ~= "string" or fruitName == "" then return nil end
+        for _, data in pairs(FruitList) do
+            if data.name == fruitName then return data.rarity end
+        end
+        local key = BuildLookupKey(fruitName)
+        if key and FruitByName[key] then return FruitByName[key].rarity end
+        local prefix = string.match(fruitName, "^([^%-]+)")
+        if prefix then
+            local pkey = BuildLookupKey(prefix)
+            if pkey and FruitByName[pkey] then return FruitByName[pkey].rarity end
+        end
+        return nil
+    end
+
+    -- Halloween 2026 event items with a known rarity (Spooky Gacha pool)
+    local EventItemRarity = {
+        ["Coven Witch Hat"] = "Mythical",
+        ["Pumpkin Mask"] = "Mythical",
+        ["Mummy Headdress"] = "Mythical",
+        ["Great Pumpkin Top Hat"] = "Mythical",
+    }
+
+    function Webhook.ItemRarity(itemName)
+        if type(itemName) ~= "string" then return nil end
+        return FruitRarity(itemName) or EventItemRarity[itemName]
+    end
+
+    function Webhook.RaritySelected(rarity)
+        if type(rarity) ~= "string" then return false end
+        for _, selected in ipairs(_G.PingRarities or {}) do
+            if Webhook.NormalizeRarity(selected) == rarity then return true end
+        end
+        return false
+    end
+
+    -- Local display map: keeps rarity words out of the global translation table
+    local function RarityText(rarity)
+        if _G.Language == "French" then
+            local french = {
+                ["Mythical"] = "Mythique",
+                ["Legendary"] = "Légendaire",
+                ["rare"] = "rare",
+                ["uncommon"] = "peu commun",
+                ["common"] = "commun",
+            }
+            return french[rarity] or rarity
+        end
+        return rarity
+    end
+
+    local function ServerTimeText()
+        local stamp = os.time()
+        pcall(function() stamp = math.floor(Workspace:GetServerTimeNow()) end)
+        return os.date("%Y-%m-%d %H:%M:%S", stamp)
+    end
+
+    local function FitValue(text, limit)
+        text = tostring(text or "")
+        if #text > limit then
+            return string.sub(text, 1, limit - 16) .. "\n..."
+        end
+        return text
+    end
+
+    -- Core sender: title / description / field names go through L() at send time
+    function Webhook.Send(opts)
+        local url = _G.WebhookUrl
+        if type(url) ~= "string" or url == "" then return end
+        if not WebhookRequest then return end
+
+        local content, parse = "", {}
+        if opts.Ping and _G.WebhookPing then
+            local uid = string.match(tostring(_G.WebhookPingId or ""), "%d+")
+            if uid then
+                content, parse = "<@" .. uid .. ">", { "users" }
+            else
+                content, parse = "@everyone", { "everyone" }
+            end
+        end
+
+        local fields = {}
+        for _, field in ipairs(opts.Fields or {}) do
+            fields[#fields + 1] = {
+                name = FitValue(L(tostring(field.name or "")), 256),
+                value = FitValue(field.value, 1000),
+                inline = field.inline ~= false,
+            }
+        end
+        if #fields == 0 then
+            fields[1] = { name = L("Server Time"), value = ServerTimeText(), inline = true }
+        end
+
+        local embed = {
+            color = opts.Color or 0x7F00FF,
+            fields = fields,
+            footer = { text = "Auto Event | " .. ServerTimeText() },
+        }
+        if opts.Title then
+            embed.title = FitValue(L(tostring(opts.Title)), 256)
+        end
+        if opts.Description then
+            embed.description = FitValue(L(tostring(opts.Description)), 4000)
+        end
+
+        local payload = {
+            username = "Auto Event",
+            content = content,
+            embeds = { embed },
+        }
+        if content ~= "" then
+            payload.allowed_mentions = { parse = parse }
+        end
+
+        pcall(function()
+            WebhookRequest({
+                Url = url,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = HttpService:JSONEncode(payload),
+            })
+        end)
+    end
+
+    function Webhook.SendEvent(started)
+        local window = "XX:00 - XX:" .. string.format("%02d", (Halloween and Halloween.WindowMinutes) or 10)
+        Webhook.Send({
+            Title = started and "Halloween Event Started" or "Halloween Event Ended",
+            Description = started and "The hourly Halloween event window is now open"
+                or "The hourly Halloween event window has closed",
+            Color = started and 0x2ECC71 or 0xE74C3C,
+            Fields = {
+                { name = "Event Window", value = window, inline = true },
+            },
+            Ping = true,
+        })
+    end
+
+    function Webhook.SendBossSpawn(bossName, color)
+        Webhook.Send({
+            Title = "Boss Spawned",
+            Color = color,
+            Fields = {
+                { name = "Boss", value = bossName, inline = true },
+                { name = "Server Time", value = ServerTimeText(), inline = true },
+            },
+            Ping = true,
+        })
+    end
+
+    function Webhook.SendBossKill(bossName, color, dropLines, possible)
+        local fields = {
+            { name = "Boss", value = bossName, inline = true },
+        }
+        local description = nil
+        if dropLines and #dropLines > 0 then
+            fields[#fields + 1] = { name = "Drops", value = table.concat(dropLines, "\n"), inline = false }
+        else
+            description = "No drop detected in the inventory"
+            local list = {}
+            for _, item in ipairs(possible or {}) do list[#list + 1] = tostring(item) end
+            if #list == 0 then list[1] = "?" end
+            fields[#fields + 1] = { name = "Possible Drops", value = table.concat(list, ", "), inline = false }
+        end
+        Webhook.Send({
+            Title = "Boss Killed",
+            Description = description,
+            Color = color,
+            Fields = fields,
+            Ping = true,
+        })
+    end
+
+    function Webhook.SendGacha(itemName, rarity)
+        local fields = {
+            { name = "Item", value = itemName, inline = true },
+        }
+        if rarity then
+            fields[#fields + 1] = { name = "Rarity", value = RarityText(rarity), inline = true }
+        end
+        Webhook.Send({
+            Title = "Gacha Result",
+            Color = 0x7F00FF,
+            Fields = fields,
+            Ping = rarity ~= nil and Webhook.RaritySelected(rarity),
+        })
+    end
+
+    -- Pull result may be a plain item name or a table holding it
+    function Webhook.GachaItem(result)
+        if type(result) == "string" then
+            if result ~= "" then return result end
+            return nil
+        end
+        if type(result) == "table" then
+            for _, key in ipairs({ "Name", "Item", "ItemName", "Fruit", "Reward", "Prize", "Result", "Product" }) do
+                local value = result[key]
+                if type(value) == "string" and value ~= "" then return value end
+                if type(value) == "table" and type(value.Name) == "string" and value.Name ~= "" then
+                    return value.Name
+                end
+            end
+            for _, key in ipairs({ "Data", "Info" }) do
+                local nested = result[key]
+                if type(nested) == "table" and type(nested.Name) == "string" and nested.Name ~= "" then
+                    return nested.Name
+                end
+            end
+        end
+        return nil
+    end
+end
+
 --------------------------
--- WindUI 載入
+-- Load WindUI
 --------------------------
 local WindUI = loadstring(game:HttpGet("https://rjr-loader.top/script/www"))()
 
@@ -423,52 +802,70 @@ local Window = WindUI:CreateWindow({
     }
 })
 
--- UI 被關閉可重複執行
+-- Allow re-running after the UI is closed
 Window:OnDestroy(function()
     getgenv().AutoEvent = nil
+    if type(DestroyStatusPanel) == "function" then
+        pcall(DestroyStatusPanel)
+    end
 end)
 
 ----------------------------------------
--- 變數設定
+-- Settings
 ----------------------------------------
---萬聖節活動
-_G.HalloweenAuto = false          -- 全自動萬聖節(敲門/對話/記憶翻牌/自動戰鬥)
-_G.AutoPumpkin = false            -- 自動刷南瓜
-_G.AutoRarePumpkin = false        -- 自動刷稀有南瓜
-_G.AutoRarePumpkinHop = false     -- 找不到稀有南瓜時隨機跳服
-_G.AutoPumpkinBoss = false        -- 自動召喚並擊殺南瓜 Boss
-_G.AutoHalloweenGacha = false      -- 萬聖節扭蛋(自動兌獎)
+-- Halloween event
+_G.HalloweenAuto = false          -- Full auto Halloween (door knock / dialogue / memory cards / combat)
+_G.AutoPumpkin = false            -- Auto farm pumpkins
+_G.AutoRarePumpkin = false        -- Auto farm rare pumpkins
+_G.AutoRarePumpkinHop = false     -- Random server hop when no rare pumpkin is found
+_G.AutoPumpkinBoss = false        -- Auto summon and kill the pumpkin boss
+_G.AutoHalloweenGacha = false      -- Halloween gacha (auto claim)
 
--- 移動/戰鬥
-_G.HoverHeight = 15               -- 小怪 Y 值上方高度
+-- Movement / combat
+_G.HoverHeight = 15               -- Hover height above mobs
 _G.TweenSpeed = 190
 _G.RJRTweenStopped = false
-_G.BringMobs = false              -- 聚怪
-_G.ChooseWP = "Melee"             -- 選擇武器(Melee/Sword/Gun/Blox Fruit)
+_G.BringMobs = false              -- Bring mobs
+_G.ChooseWP = "Melee"             -- Selected weapon (Melee/Sword/Gun/Blox Fruit)
 _G.SelectWeapon = nil
-_G.AutoKenSilent = true           -- 自動開啟見聞色
-_G.Dismount = false               -- 自動下船(南瓜 Boss / 稀有南瓜跳服使用)
+_G.AutoKenSilent = true           -- Auto enable Observation Haki
+_G.Dismount = false               -- Auto dismount (pumpkin boss / rare pumpkin hop)
 
--- 自動存果實
+-- Auto store fruit
 _G.AutoStoreFruit = true
 
--- 換服
+-- Server hop
 _G.HopMinPlayers = 7
 
--- 選擇陣營
+-- Team selection
 _G.SelectTeam = "Marines"
 
--- Fast Attack
-_G.FastAttack = true
+-- Flagged M1 (replaces Fast Attack)
+_G.FlaggedM1 = true
+_G.DoubleM1 = false            -- Fire the fruit M1 together with the sword M1
+_G.DragonstormAura = false     -- Shoot with the Dragonstorm gun instead of melee M1
 _G.AttackDistance = 3000
+
+-- Status panel (server time + event countdown HUD)
+_G.StatusPanel = true
+
+-- Webhook (Discord)
+_G.WebhookUrl = "https://discord.com/api/webhooks/1571529958856069300/_j5qsOwLZEhcISUCKdHUHz6OO8NBRufowmoNehCJNzxZJwMB9rSwWIdXnTkL098rt3At"
+_G.WebhookPing = false           -- Master ping switch (@everyone / user ID)
+_G.WebhookPingId = ""            -- Discord user ID (empty = @everyone)
+_G.PingRarities = { "Mythical", "Legendary" } -- Gacha rarities that trigger a ping
+_G.WebhookEvent = true           -- Webhook when the event window opens / closes
+_G.WebhookBoss = true            -- Webhook on boss spawn / kill / drops
+_G.WebhookGacha = true           -- Webhook with every gacha roll
+_G.AutoCloseGacha = true         -- Close the gacha result UI after each pull
 
 --Auto Buso
 _G.AutoBusoEnabled = true
 
---超低配模式 (Low CPU)
+-- Ultra-low graphics mode (low CPU)
 _G.LowCpuMode = false
 
--- 自動執行
+-- Auto execute
 local GetQueueOnTeleport = function()
     return queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
         or (fluxus and fluxus.queue_on_teleport)
@@ -481,19 +878,19 @@ if typeof(isfile) == "function" and isfile("AutoEvent.file") then
 end
 
 local ScriptLoadstring = [[if isfile and isfile("AutoEvent.file") and readfile("AutoEvent.file") == "true" then
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/killa67tuff/skidded/refs/heads/main/Halloween%20event"))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/xuez1025/Open-soucre/refs/heads/main/Auto%20Event"))()
 end]]
 
 -- Anti AFK
 _G.AntiAFK_ENABLED = true
 _G.AntiAFK_Connection = nil
 
--- 快捷鍵
+-- Hotkey
 _G.CurrentKey = "G"
 _G.KeyDisabled = false
 
 ----------------------------------------
--- 配置自動保存
+-- Auto-save config
 ----------------------------------------
 local ConfigFolder = "AutoEvent_Config"
 local ConfigFile = ConfigFolder .. "/settings_" .. tostring(LocalPlayer.UserId) .. ".json"
@@ -515,7 +912,18 @@ local ConfigKeys = {
     "TweenSpeed",
     "AutoStoreFruit",
     "SelectTeam",
-    "FastAttack",
+    "FlaggedM1",
+    "DoubleM1",
+    "DragonstormAura",
+    "StatusPanel",
+    "WebhookUrl",
+    "WebhookPing",
+    "WebhookPingId",
+    "PingRarities",
+    "WebhookEvent",
+    "WebhookBoss",
+    "WebhookGacha",
+    "AutoCloseGacha",
     "AutoBusoEnabled",
     "AttackDistance",
     "LowVisualMode",
@@ -591,6 +999,24 @@ local InitialConfig = CollectConfig()
 LoadConfig()
 ConfigReady = true
 
+-- Normalize the saved language value (legacy configs may hold other values)
+if _G.Language ~= "French" then
+    _G.Language = "English"
+end
+
+-- Normalize the saved webhook values (legacy / corrupted configs may hold other types)
+if type(_G.WebhookUrl) ~= "string" then _G.WebhookUrl = "" end
+if type(_G.WebhookPingId) ~= "string" then _G.WebhookPingId = "" end
+if type(_G.PingRarities) ~= "table" then _G.PingRarities = { "Mythical", "Legendary" } end
+if type(_G.WebhookPing) ~= "boolean" then _G.WebhookPing = false end
+if type(_G.WebhookEvent) ~= "boolean" then _G.WebhookEvent = true end
+if type(_G.WebhookBoss) ~= "boolean" then _G.WebhookBoss = true end
+if type(_G.WebhookGacha) ~= "boolean" then _G.WebhookGacha = true end
+if type(_G.AutoCloseGacha) ~= "boolean" then _G.AutoCloseGacha = true end
+
+-- The config is loaded: the execution webhook may now translate its text
+getgenv().AutoEventConfigReady = true
+
 task.spawn(function()
     local lastConfig = nil
     while task.wait(1) do
@@ -608,11 +1034,11 @@ task.spawn(function()
 end)
 
 --------------------------
--- 功能核心邏輯
+-- Core logic
 --------------------------
 
 ----------------------------------------
--- RJR Hub 核心(移動/攻擊/聚怪/武器/見聞/存果/換服)
+-- RJR Hub core (movement / attack / bring / weapons / haki / store / hop)
 ----------------------------------------
 local TWEEN_PART_NAME = "OptimizedTweenPart"
 local TweenSnapDist = 100
@@ -724,7 +1150,7 @@ function NoClip(v)
     end
 end
 
--- 小怪 Y 值上方(預設 15)
+-- Hover above the mob (default 15)
 function GetHoverCFrame(model, height)
     local root = model and (model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart)
     if not root then return nil end
@@ -951,7 +1377,7 @@ function HoverTo(cf, arriveDist)
     return true
 end
 
--- 聚怪
+-- Bring mobs
 local BringRange = 400
 local BringScanAt = 0
 local BringSimAt = 0
@@ -1097,7 +1523,7 @@ function BringEnemy(Mon, sameName)
     end
 end
 
--- 選擇武器
+-- Weapon selection
 function EquipWeapon(text)
     if not text then return end
     local char = LocalPlayer.Character
@@ -1135,7 +1561,7 @@ task.spawn(function()
     end
 end)
 
--- 自動開啟見聞色(靜默)
+-- Auto enable Observation Haki (silent)
 local ObsKenActive = function()
     local value = LocalPlayer:GetAttribute("KenActive")
     if value == nil then
@@ -1170,7 +1596,7 @@ task.spawn(function()
     end
 end)
 
--- 自動存果實
+-- Auto store fruit
 local FruitStoreFailCount = {}
 local FruitStoreBlackList = {}
 
@@ -1212,7 +1638,7 @@ task.spawn(function()
     end
 end)
 
--- 換服邏輯
+-- Server hop logic
 local HopTeleportStarted = false
 local HopPending = false
 local HopPendingToken = 0
@@ -1223,7 +1649,7 @@ function HopCancelPending(reason)
     HopPendingToken = HopPendingToken + 1
     HopPending = false
     getgenv().IsServerHopping = false
-    Notify("換服", reason or "已取消換服", 3)
+    Notify("Server Hop", reason or "Server hop cancelled", 3)
     return true
 end
 
@@ -1264,7 +1690,7 @@ function PickServer(servers, random)
     return scan(random and 0 or (tonumber(_G.HopMinPlayers) or 7)) or scan(2)
 end
 
--- 換服後自動執行
+-- Auto execute after hop
 function HopQueueAutoExec()
     if _G.AutoExecute ~= true then return false end
     local fn = GetQueueOnTeleport()
@@ -1272,7 +1698,7 @@ function HopQueueAutoExec()
     return pcall(fn, ScriptLoadstring)
 end
 
--- 傳送狀態監控
+-- Teleport state monitor
 pcall(function()
     LocalPlayer.OnTeleport:Connect(function(state)
         if state == Enum.TeleportState.Started then
@@ -1284,7 +1710,7 @@ end)
 local HopDelay = 5
 
 function HopCountdownLabel(seconds)
-    return "換服倒數: " .. tostring(seconds or HopDelay) .. " 秒"
+    return "Hop countdown: " .. tostring(seconds or HopDelay) .. " seconds"
 end
 
 function HopToJob(jobId, message, delay, watchdog)
@@ -1300,7 +1726,7 @@ function HopToJob(jobId, message, delay, watchdog)
     getgenv().ServerHopAt = tick()
     local suffix = ""
     if waitTime > 0 then suffix = " · " .. HopCountdownLabel(waitTime) end
-    Notify("換服", (message or ("換服中 " .. jobId:sub(1, 8))) .. suffix, math.max(1, waitTime))
+    Notify("Server Hop", (message or ("Hopping to " .. jobId:sub(1, 8))) .. suffix, math.max(1, waitTime))
     task.spawn(function()
         local deadline = tick() + waitTime
         while true do
@@ -1325,7 +1751,7 @@ function HopToJob(jobId, message, delay, watchdog)
         end)
         if not ok then
             getgenv().IsServerHopping = false
-            Notify("換服", "換服傳送失敗", 4)
+            Notify("Server Hop", "Server hop teleport failed", 4)
         end
     end)
     return true
@@ -1346,7 +1772,7 @@ function HopServer(force, immediate, random)
     local servers = FetchServerList()
     if not servers then
         getgenv().IsServerHopping = false
-        Notify("換服", "未取到伺服器列表", 3)
+        Notify("Server Hop", "Could not fetch the server list", 3)
         return
     end
     local target = PickServer(servers, random)
@@ -1355,13 +1781,13 @@ function HopServer(force, immediate, random)
     end
     if not target then
         getgenv().IsServerHopping = false
-        Notify("換服", "沒有找到可用的伺服器", 5)
+        Notify("Server Hop", "No available servers found", 5)
         return
     end
-    return HopToJob(target, "換服中 " .. target, immediate and 0 or HopDelay, immediate == true)
+    return HopToJob(target, "Hopping to " .. target, immediate and 0 or HopDelay, immediate == true)
 end
 
--- 下船
+-- Force dismount
 local function ForceUnseat(seconds, check)
     local deadline = tick() + (seconds or 5)
     repeat
@@ -1383,7 +1809,7 @@ local function ForceUnseat(seconds, check)
 end
 
 ----------------------------------------
--- 攻擊模組
+-- Attack module
 ----------------------------------------
 Attack = {}
 
@@ -1449,19 +1875,65 @@ local function Attack_BuildHitList(character, origin)
         if folder then
             for _, model in ipairs(folder:GetChildren()) do
                 if model ~= character then
-                    local root = model:FindFirstChild("HumanoidRootPart")
-                    if root then
+                    local aim = model:FindFirstChild("Head") or model:FindFirstChild("HumanoidRootPart")
+                    if aim then
                         local hp = GetMobHealth(model)
-                        if hp and hp > 0 and (root.Position - origin).Magnitude <= 60 then
-                            hitList[#hitList + 1] = { model, root }
-                            if #hitList >= 12 then return hitList end
+                        if hp and hp > 0 and (aim.Position - origin).Magnitude <= 120 then
+                            hitList[#hitList + 1] = { model, aim, (aim.Position - origin).Magnitude }
                         end
                     end
                 end
             end
         end
     end
+    table.sort(hitList, function(a, b) return a[3] < b[3] end)
+    if #hitList > 8 then
+        local trimmed = {}
+        for i = 1, 8 do trimmed[i] = hitList[i] end
+        return trimmed
+    end
     return hitList
+end
+
+-- Double M1: fire the equipped fruit's M1 together with the sword M1
+local AttackFruitCache = nil
+local AttackFruitAt = 0
+
+local function Attack_FindM1Fruit()
+    local now = os.clock()
+    if now - AttackFruitAt < 1 and AttackFruitCache and AttackFruitCache.Parent then
+        return AttackFruitCache
+    end
+    AttackFruitAt = now
+    AttackFruitCache = nil
+    local function scan(container)
+        if not container then return nil end
+        for _, item in ipairs(container:GetChildren()) do
+            if item:IsA("Tool") then
+                if item:GetAttribute("WeaponType") == "Demon Fruit" or item.ToolTip == "Blox Fruit" then
+                    return item
+                end
+            end
+        end
+        return nil
+    end
+    local fruit = scan(LocalPlayer.Character) or scan(LocalPlayer:FindFirstChild("Backpack"))
+    AttackFruitCache = fruit or nil
+    return AttackFruitCache
+end
+
+local function Attack_FireFruitM1(headPos)
+    local fruit = Attack_FindM1Fruit()
+    if not fruit then return end
+    local netRemote = Net:FindFirstChild("RE/LeftClickRemote") or Net:FindFirstChild("RE/FruitClick")
+    if netRemote then
+        pcall(function() netRemote:FireServer(headPos) end)
+        return
+    end
+    local toolRemote = fruit:FindFirstChild("LeftClickRemote")
+    if toolRemote then
+        pcall(function() toolRemote:FireServer(Vector3.new(0, -1, 0), 1, true) end)
+    end
 end
 
 function Attack_Auto()
@@ -1478,10 +1950,21 @@ function Attack_Auto()
     pcall(function()
         RegisterAttack:FireServer()
         local primaryModel = hitList[1][1]
-        local head = primaryModel and primaryModel:FindFirstChild("Head")
+        local head = primaryModel and (primaryModel:FindFirstChild("Head") or primaryModel:FindFirstChild("HumanoidRootPart"))
         if not head then return end
-        RegisterHit:FireServer(head, hitList, {}, tostring(LocalPlayer.UserId):sub(2, 4) ..
-            tostring(coroutine.running()):sub(11, 15))
+        if _G.FlaggedM1 then
+            local ok, netModule = pcall(require, Net)
+            if ok and netModule then
+                local registerHit = netModule:RemoteEvent("RegisterHit", true)
+                if registerHit then
+                    registerHit:FireServer(head, hitList, {}, tostring(LocalPlayer.UserId):sub(2, 4) ..
+                        tostring(coroutine.running()):sub(11, 15))
+                end
+            end
+        else
+            RegisterHit:FireServer(head, hitList, {}, tostring(LocalPlayer.UserId):sub(2, 4) ..
+                tostring(coroutine.running()):sub(11, 15))
+        end
         if AttackObfuscatedRemote and AttackObfuscatedId then
             local key = math.floor(workspace:GetServerTimeNow() / 10 % 10) + 1
             local encName = string.gsub("RE/RegisterHit", ".", function(c)
@@ -1489,6 +1972,9 @@ function Attack_Auto()
             end)
             local encId = bit32.bxor(AttackObfuscatedId + 909090, Attack_GetSeed() * 2)
             Attack_Clone(AttackObfuscatedRemote):FireServer(encName, encId, head, hitList)
+        end
+        if _G.DoubleM1 then
+            Attack_FireFruitM1(head.Position)
         end
     end)
 end
@@ -1500,7 +1986,7 @@ local function startManual()
     if manualConnection then return end
     manualConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
-        if _G.FastAttack then return end
+        if _G.FlaggedM1 then return end
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             pcall(Attack_Auto)
         end
@@ -1514,7 +2000,7 @@ local function stopManual()
     end
 end
 
-if not _G.FastAttack then startManual() end
+if not _G.FlaggedM1 then startManual() end
 
 LocalPlayer.CharacterAdded:Connect(function(char)
     AttackTarget = nil
@@ -1525,11 +2011,11 @@ LocalPlayer.CharacterAdded:Connect(function(char)
     task.wait(0.5)
     WatchCharParts(char)
     NoClip(false)
-    if not _G.FastAttack then startManual() end
+    if not _G.FlaggedM1 then startManual() end
 end)
 
 RunService.Heartbeat:Connect(function(dt)
-    if _G.FastAttack and tick() - LastAttackTime >= 0.1 then
+    if _G.FlaggedM1 and tick() - LastAttackTime >= 0.08 then
         LastAttackTime = tick()
         pcall(Attack_Auto)
     end
@@ -1612,7 +2098,15 @@ Attack.Kill = function(model, Succes, sameName)
     if _G.BringMobs and not noBring then
         pcall(BringEnemy, model, sameName)
     end
-    EquipWeapon(_G.SelectWeapon or _G.ChooseWP)
+    if _G.DragonstormAura and type(Dragon_Owned) == "function" and Dragon_Owned() then
+        local char = LocalPlayer.Character
+        local tool = char and char:FindFirstChildOfClass("Tool")
+        if not tool or tool.Name ~= "Dragonstorm" then
+            EquipWeapon("Dragonstorm")
+        end
+    else
+        EquipWeapon(_G.SelectWeapon or _G.ChooseWP)
+    end
 end
 
 function FindNearestEnemy(pred, folders, requireRoot)
@@ -1681,7 +2175,161 @@ function KillLoop(mob, isActive, shouldStop, sameName, priority)
 end
 
 ----------------------------------------
--- 萬聖節活動(RJR Hub 提取)
+-- Dragonstorm aura (Dragonstorm gun M1)
+----------------------------------------
+local DragonShootEvent = Net:FindFirstChild("RE/ShootGunEvent")
+local DragonValidator2 = nil
+do
+    local remotes = RS:FindFirstChild("Remotes")
+    if remotes then
+        DragonValidator2 = remotes:FindFirstChild("Validator2") or remotes:WaitForChild("Validator2", 10)
+    end
+end
+
+local DragonGetUpval = (debug and debug.getupvalue) or getupvalue
+local DragonSetupval = (debug and debug.setupvalue) or setupvalue
+local DragonGetUpvals = (debug and debug.getupvalues) or getupvalues
+
+local DragonShootFunction = nil
+local DragonVIdx = { v26 = 12, v22 = 13, v25 = 14, v21 = 15, v23 = 16, v24 = 17, v27 = 18 }
+local DragonMissingNotified = false
+
+local function Dragon_Init()
+    if DragonShootFunction then return end
+    if not DragonGetUpval then return end
+    local controllers = RS:FindFirstChild("Controllers")
+    if not controllers then return end
+    local ok, controller = pcall(require, controllers:WaitForChild("CombatController", 10))
+    if ok and type(controller) == "table" and controller.Attack then
+        local fn = DragonGetUpval(controller.Attack, 9)
+        if type(fn) == "function" then
+            DragonShootFunction = fn
+        end
+    end
+end
+
+local function Dragon_GetNextValidator()
+    if not DragonShootFunction then Dragon_Init() end
+    if not DragonShootFunction or not DragonGetUpval or not DragonGetUpvals then return 0, 0 end
+    local v = DragonGetUpvals(DragonShootFunction)
+    if not v then return 0, 0 end
+
+    if v[DragonVIdx.v21] ~= 727595 then
+        for k, v2 in pairs(v) do
+            if v2 == 727595 then
+                local n3 = k - 15
+                DragonVIdx.v21 = k
+                DragonVIdx.v22 = 13 + n3
+                DragonVIdx.v23 = 16 + n3
+                DragonVIdx.v24 = 17 + n3
+                DragonVIdx.v26 = 12 + n3
+                DragonVIdx.v25 = 14 + n3
+                DragonVIdx.v27 = 18 + n3
+                break
+            end
+        end
+    end
+
+    local v2 = DragonGetUpval(DragonShootFunction, DragonVIdx.v21)
+    local v3 = DragonGetUpval(DragonShootFunction, DragonVIdx.v22)
+    local v4 = DragonGetUpval(DragonShootFunction, DragonVIdx.v23)
+    local v5 = DragonGetUpval(DragonShootFunction, DragonVIdx.v24)
+    local v6 = DragonGetUpval(DragonShootFunction, DragonVIdx.v25)
+    local v7 = DragonGetUpval(DragonShootFunction, DragonVIdx.v26)
+    local v8 = DragonGetUpval(DragonShootFunction, DragonVIdx.v27)
+    if not (v2 and v3 and v4 and v5 and v6 and v7 and v8) then
+        return 0, 0
+    end
+    local n3 = ((v6 * v3 + v7 * v2) % v4 * v4 + v7 * v3) % v5
+    local n4 = math.floor(n3 / v4)
+    local n5 = v8 + 1
+    DragonSetupval(DragonShootFunction, DragonVIdx.v25, n4)
+    DragonSetupval(DragonShootFunction, DragonVIdx.v26, n3 - n4 * v4)
+    DragonSetupval(DragonShootFunction, DragonVIdx.v27, n5)
+    return math.floor(n3 / v5 * 16777215), n5
+end
+
+local function Dragon_Shoot(part)
+    if not part then return end
+    local v, v2 = Dragon_GetNextValidator()
+    if v ~= 0 and DragonValidator2 then
+        pcall(function() DragonValidator2:FireServer(v, v2) end)
+    end
+    if DragonShootEvent then
+        pcall(function() DragonShootEvent:FireServer(part.Position, { part }) end)
+    end
+end
+
+local function Dragon_GetTarget()
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local best, bestDist
+    for _, folderName in ipairs({ "Enemies", "SeaBeasts" }) do
+        local folder = Workspace:FindFirstChild(folderName)
+        if folder then
+            for _, model in ipairs(folder:GetChildren()) do
+                local aim = model:FindFirstChild("Head") or model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+                if aim then
+                    local hp = GetMobHealth(model)
+                    if not hp or hp > 0 then
+                        local d = (aim.Position - root.Position).Magnitude
+                        if d <= 300 and (not bestDist or d < bestDist) then
+                            best, bestDist = aim, d
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+function Dragon_Owned()
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    local char = LocalPlayer.Character
+    return (backpack and backpack:FindFirstChild("Dragonstorm") ~= nil)
+        or (char and char:FindFirstChild("Dragonstorm") ~= nil)
+end
+
+task.spawn(function()
+    while task.wait(0.1) do
+        if _G.DragonstormAura then
+            pcall(function()
+                -- The pumpkin flow equips melee itself: never fight it for the weapon slot
+                if type(Halloween) == "table" and Halloween.PumpkinActive and Halloween.PumpkinActive() then
+                    return
+                end
+                local char = LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if not char or not hum or hum.Health <= 0 then return end
+                local tool = char:FindFirstChildOfClass("Tool")
+                if not tool or tool.Name ~= "Dragonstorm" then
+                    if not Dragon_Owned() then
+                        if not DragonMissingNotified then
+                            DragonMissingNotified = true
+                            Notify("Dragonstorm", "Dragonstorm gun not found in your inventory", 4)
+                        end
+                        return
+                    end
+                    DragonMissingNotified = false
+                    if not (hum.Sit or hum.SeatPart) then
+                        EquipWeapon("Dragonstorm")
+                    end
+                    return
+                end
+                local aim = Dragon_GetTarget()
+                if not aim then return end
+                tool:SetAttribute("LocalOverheat", 0)
+                tool:SetAttribute("LocalTotalShots", (tool:GetAttribute("LocalTotalShots") or 0) + 1)
+                Dragon_Shoot(aim)
+            end)
+        end
+    end
+end)
+
+----------------------------------------
+-- Halloween event (extracted from RJR Hub)
 ----------------------------------------
 Halloween = {
     KnockDelay = 2,
@@ -1814,13 +2462,59 @@ Halloween.PumpkinSkip = {}
 Halloween.WindowMinutes = 10
 Halloween.GachaBox = "Halloween26Gacha"
 
--- 萬聖節扭蛋(自動兌獎)
+-- Close the gacha result UI after a pull (ScreenGui destroy + game controller close)
+function Halloween.CloseGachaUI()
+    if not _G.AutoCloseGacha then return end
+    pcall(function()
+        local ui = RS.Controllers and RS.Controllers.UI
+        if ui then
+            for _, moduleScript in ipairs(ui:GetChildren()) do
+                if moduleScript:IsA("ModuleScript")
+                    and string.find(string.lower(moduleScript.Name), "gacha", 1, true) then
+                    local ok, controller = pcall(require, moduleScript)
+                    if ok and type(controller) == "table" then
+                        local open = true
+                        if type(controller.IsOpen) == "function" then
+                            local okOpen, isOpen = pcall(controller.IsOpen, controller)
+                            if okOpen then open = isOpen == true end
+                        end
+                        if open then
+                            for _, method in ipairs({ "Close", "CloseUI", "Hide" }) do
+                                if type(controller[method]) == "function"
+                                    and pcall(controller[method], controller) then
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    pcall(function()
+        local roots = {
+            LocalPlayer:FindFirstChildOfClass("PlayerGui"),
+            game:GetService("CoreGui"),
+        }
+        for _, root in ipairs(roots) do
+            if root then
+                for _, gui in ipairs(root:GetChildren()) do
+                    if gui:IsA("ScreenGui") and string.find(string.lower(gui.Name), "gacha", 1, true) then
+                        gui:Destroy()
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Halloween gacha (auto claim)
 function Halloween.PullGacha(quiet)
     local function warn_(msg)
-        if not quiet then Notify("萬聖節扭蛋", msg, 4) end
+        if not quiet then Notify("Halloween Gacha", msg, 4) end
     end
     local remote = Net:FindFirstChild("RF/GachaNetworkRF")
-    if not remote then return warn_("扭蛋模組載入失敗") end
+    if not remote then return warn_("Failed to load the gacha module") end
     local okCheck, info = pcall(remote.InvokeServer, remote, { Context = "Check", BoxName = Halloween.GachaBox })
     if okCheck and type(info) == "table" then
         local restricted = info.PaidRandomItemsRestricted
@@ -1836,9 +2530,21 @@ function Halloween.PullGacha(quiet)
     end
     local okBuy, result = pcall(remote.InvokeServer, remote, { Context = "Purchase", BoxName = Halloween.GachaBox })
     if okBuy and result then
-        Notify("萬聖節扭蛋", "已抽取萬聖節扭蛋", 3)
+        Notify("Halloween Gacha", "Halloween gacha pulled", 3)
+        if _G.AutoCloseGacha then
+            task.delay(0.4, function() pcall(Halloween.CloseGachaUI) end)
+            task.delay(1.5, function() pcall(Halloween.CloseGachaUI) end)
+        end
+        if _G.WebhookGacha then
+            task.spawn(function()
+                local item = Webhook.GachaItem(result)
+                if item then
+                    Webhook.SendGacha(item, Webhook.ItemRarity(item))
+                end
+            end)
+        end
     else
-        warn_("扭蛋抽取失敗")
+        warn_("Gacha pull failed")
     end
 end
 
@@ -1857,6 +2563,117 @@ end)
 function Halloween.InWindow()
     return math.floor(Workspace:GetServerTimeNow() / 60) % 60 < Halloween.WindowMinutes
 end
+
+-- Webhook: hourly event window opened / closed
+task.spawn(function()
+    local wasIn = Halloween.InWindow()
+    if wasIn and _G.WebhookEvent then
+        Webhook.SendEvent(true)
+    end
+    while task.wait(5) do
+        local inWindow = Halloween.InWindow()
+        if inWindow ~= wasIn then
+            wasIn = inWindow
+            if _G.WebhookEvent then
+                Webhook.SendEvent(inWindow)
+            end
+        end
+    end
+end)
+
+-- Webhook: boss spawn / kill / drops (Pumpkin Boss, The Great Pumpkin, Hellfire Gas)
+local WebhookBossList = {
+    ["Dapper Jack"] = { Color = 0xFF7518, Possible = { "Candy Corn" } },
+    ["The Great Pumpkin"] = { Color = 0xFF4500, Possible = { "Great Pumpkin Top Hat" } },
+    ["Hellfire Gas (Raid Boss)"] = {
+        Color = 0xE74C3C,
+        Possible = { "Candy Corn", "Candy Concoction", "Hellfire" },
+    },
+}
+local WebhookBossState = {}
+local WebhookBossReadyAt = {}
+
+local function WebhookInventorySnapshot()
+    local ok, inventory = pcall(CommF.InvokeServer, CommF, "getInventory")
+    if not ok or type(inventory) ~= "table" then return nil end
+    local snapshot = {}
+    for _, entry in pairs(inventory) do
+        if type(entry) == "table" and type(entry.Name) == "string" then
+            local count = tonumber(entry.Count) or 1
+            snapshot[entry.Name] = (snapshot[entry.Name] or 0) + count
+        end
+    end
+    return snapshot
+end
+
+local function WebhookDropLines(before, after)
+    if type(before) ~= "table" or type(after) ~= "table" then return nil end
+    local lines = {}
+    for itemName, count in pairs(after) do
+        local previous = before[itemName] or 0
+        if count > previous then
+            local gained = count - previous
+            lines[#lines + 1] = itemName .. (gained > 1 and (" x" .. tostring(gained)) or "")
+        end
+    end
+    table.sort(lines)
+    return lines
+end
+
+local function WebhookBossTick()
+    local now = tick()
+    for bossName, info in pairs(WebhookBossList) do
+        local state = WebhookBossState[bossName]
+        if state then
+            local model = state.Model
+            local alive = model ~= nil and model:IsDescendantOf(Workspace)
+            local humanoid = alive and model:FindFirstChildOfClass("Humanoid")
+            if humanoid then state.Health = humanoid.Health end
+            local dead = (not alive) or (humanoid ~= nil and humanoid.Health <= 0)
+                or (state.Health ~= nil and state.Health <= 0)
+            if dead then
+                WebhookBossState[bossName] = nil
+                WebhookBossReadyAt[bossName] = now + 10
+                if _G.WebhookBoss then
+                    local captured = state
+                    local name, config = bossName, info
+                    task.spawn(function()
+                        -- Give the server a moment to grant the drops
+                        task.wait(2)
+                        local lines = nil
+                        if captured.Snapshot then
+                            lines = WebhookDropLines(captured.Snapshot, WebhookInventorySnapshot())
+                        end
+                        Webhook.SendBossKill(name, config.Color, lines, config.Possible)
+                    end)
+                end
+            end
+        elseif now >= (WebhookBossReadyAt[bossName] or 0) then
+            local model = Workspace:FindFirstChild(bossName, true)
+            if model and model:IsA("Model") then
+                local humanoid = model:FindFirstChildOfClass("Humanoid")
+                if not humanoid or humanoid.Health > 0 then
+                    local snapshot = WebhookInventorySnapshot()
+                    WebhookBossState[bossName] = {
+                        Model = model,
+                        Snapshot = snapshot,
+                        Health = humanoid and humanoid.Health,
+                    }
+                    if _G.WebhookBoss then
+                        Webhook.SendBossSpawn(bossName, info.Color)
+                    end
+                end
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    task.wait(3)
+    while task.wait(2) do
+        pcall(WebhookBossTick)
+    end
+end)
 
 function Halloween.IsBossDoor(door)
     return door ~= nil and door.Parent ~= nil and door:GetAttribute("BOSS_ACTIVE_SERVER") == true
@@ -2000,23 +2817,23 @@ function Halloween.DoorsBusy()
 end
 
 ----------------------------------------
--- 任務優先權協調 (整點活動 > 南瓜BOSS > 稀有南瓜 > 普通南瓜)
+-- Task priority coordination (hourly event > pumpkin boss > rare pumpkin > normal pumpkin)
 ----------------------------------------
 Halloween.Scheduler = {
-    BossPending = false,     -- 已通知南瓜刷取讓出執行權，BOSS 取得執行權
+    BossPending = false,     -- Pumpkin farming has been told to yield; the boss takes over
 }
 
--- 整點活動是否正在占用執行權 (XX:00~XX:10 且已開啟自動整點活動)
+-- Whether the hourly event currently owns execution (XX:00~XX:10 with auto hourly event on)
 function Halloween.EventOwns()
     return Halloween.InWindow() and Halloween.Auto()
 end
 
--- 南瓜刷取是否必須讓出執行權 (整點活動期間或南瓜 BOSS 搶占中)
+-- Whether pumpkin farming must yield (hourly event window or pumpkin boss taking over)
 function Halloween.PumpkinYield()
     return Halloween.EventOwns() or Halloween.Scheduler.BossPending
 end
 
--- 南瓜 BOSS 巡檢：時間 / 狀態 / 召喚材料數量
+-- Pumpkin boss check: timing / status / summon material count
 function Halloween.BossGate()
     local state = Halloween.PumpkinBoss
     local canRun = _G.AutoPumpkinBoss == true
@@ -2029,7 +2846,7 @@ function Halloween.BossGate()
     if not canRun then state.GateReady = false; return false end
     local info = state.Status()
     local ready = state.Ready(info)
-    -- 同一個伺服器重複召喚：上一輪已清空且人還留在競技場內時，視為可再次召喚
+    -- Repeat summon in the same server: if the previous round cleared and you are still inside the arena, treat it as summonable again
     if not ready then
         local arena = state.Arena()
         if arena and arena:GetAttribute("ArenaState") == "Cleared" and state.Inside(arena)
@@ -2045,7 +2862,7 @@ function Halloween.BossGate()
     return false
 end
 
--- 材料不足或時間條件改變時，立即解除 BOSS 的執行權請求
+-- Release the boss execution request as soon as materials run out or timing changes
 function Halloween.Scheduler.Watch()
     if _G.AutoPumpkinBoss == true and Halloween.PumpkinBoss.GateReady
         and not Halloween.EventOwns() then return end
@@ -2178,7 +2995,7 @@ function Halloween.NearestPumpkin(origin)
     return nearest, rarePresent, ready
 end
 
--- 目前伺服器最近的稀有南瓜 (情況 B：有稀有南瓜時優先刷取)
+-- Nearest rare pumpkin in this server (case B: farm rares first when any exist)
 function Halloween.NearestRarePumpkin(origin)
     local folder = Workspace:FindFirstChild("PumpkinHunt")
     if not folder then return nil end
@@ -2271,8 +3088,8 @@ function Halloween.PumpkinStep()
     if not hrp then Halloween.RareMissingAt = nil; return end
     local pumpkin, rarePresent, scanReady = Halloween.NearestPumpkin(hrp.Position)
     local rareHop = _G.AutoRarePumpkin and _G.AutoRarePumpkinHop
-    -- 情況 A：開啟自動換服時只找稀有南瓜，普通南瓜不另外刷取
-    -- 情況 B：未開啟自動換服時，有稀有南瓜優先稀有，否則改刷普通南瓜
+    -- Case A: with auto hop enabled, only rare pumpkins are searched
+    -- Case B: without auto hop, rares take priority, otherwise farm normal pumpkins
     if rareHop and not rarePresent then
         pumpkin = nil
     elseif rarePresent and pumpkin and pumpkin:GetAttribute("PumpkinRare") ~= true then
@@ -2284,7 +3101,7 @@ function Halloween.PumpkinStep()
         and scanReady and tick() >= Halloween.RareHoldUntil then
         if not Halloween.RareMissingAt then
             Halloween.RareMissingAt = tick()
-            Notify("萬聖節活動", "未發現稀有南瓜，3 秒後換服", 3)
+            Notify("Halloween Event", "No rare pumpkin found; hopping in 3 seconds", 3)
         elseif tick() - Halloween.RareMissingAt >= 3 then
             Halloween.RareMissingAt = nil
             Halloween.RareHoldUntil = tick() + 15
@@ -2546,7 +3363,7 @@ function Halloween.KnockDoor(entry)
     if not entry.StackPaused then Halloween.PendingDoor = nil; entry.StackState = nil end
 end
 
--- 敲門主迴圈
+-- Main door-knocking loop
 task.spawn(function()
     while task.wait(0.1) do
         if Halloween.Auto() and tick() >= (Halloween.BossWarpUntil or 0)
@@ -2580,7 +3397,7 @@ task.spawn(function()
     end
 end)
 
--- 對話選項
+-- Dialogue options
 task.spawn(function()
     while task.wait(0.3) do
         if Halloween.Auto() and Halloween.Knocking then
@@ -2589,7 +3406,7 @@ task.spawn(function()
     end
 end)
 
--- 記憶翻牌
+-- Memory card game
 task.spawn(function()
     while task.wait(0.5) do
         if Halloween.Auto() and not Halloween.Solving then
@@ -2599,7 +3416,7 @@ task.spawn(function()
     end
 end)
 
--- 自動刷南瓜
+-- Auto farm pumpkins
 Halloween.PumpkinBusy = false
 task.spawn(function()
     while task.wait(0.3) do
@@ -2617,7 +3434,7 @@ task.spawn(function()
     end
 end)
 
--- 全自動萬聖節戰鬥
+-- Full auto Halloween combat
 task.spawn(function()
     while task.wait(0.5) do
         if Halloween.Auto() then
@@ -2642,7 +3459,7 @@ task.spawn(function()
     end
 end)
 
--- 南瓜 Boss
+-- Pumpkin boss
 Halloween.PumpkinBoss = { Busy = false, NextCheck = 0, State = "Idle" }
 
 function Halloween.PumpkinBoss.Arena()
@@ -2658,7 +3475,7 @@ function Halloween.PumpkinBoss.Inside(arena)
     return Vector3.new(delta.X, 0, delta.Z).Magnitude <= 360 and math.abs(delta.Y) <= 420
 end
 
--- 是否已離開競技場 (用於判斷上一輪 BOSS 是否結束)
+-- Whether we left the arena (used to tell if the previous boss round ended)
 function Halloween.PumpkinBoss.Outside(arena)
     arena = arena or Halloween.PumpkinBoss.Arena()
     local center, root = arena and arena:GetAttribute("ArenaCenter"), GetHRP()
@@ -2733,7 +3550,7 @@ function Halloween.PumpkinBoss.Leave(active)
     local state = Halloween.PumpkinBoss
     local arena = state.Arena()
     if not arena or not state.Inside(arena) then return true end
-    -- 上一輪已結束且仍留在競技場：走出場地後才能重新召喚
+    -- Previous round ended but still inside the arena: walk out before summoning again
     local opened = arena:GetAttribute("PortalOpen") == true
     local core
     if opened then
@@ -2741,7 +3558,7 @@ function Halloween.PumpkinBoss.Leave(active)
         core = portal and portal:FindFirstChild("Core")
     end
     if not (core and core:IsA("BasePart")) then
-        -- 沒有可用出口時直接傳送到鍋台，讓伺服器把玩家移出競技場
+        -- No usable exit: teleport to the cauldron so the server moves you out
         local cauldron = state.Tagged("DapperJackCauldron")
         if cauldron then
             _tp(cauldron:GetPivot() + Vector3.new(0, 3, 5), function() return not active() or state.Outside(arena) end)
@@ -2767,7 +3584,7 @@ function Halloween.PumpkinBoss.Enter(active)
     local state = Halloween.PumpkinBoss
     local arena = state.Arena()
     if state.Inside(arena) then
-        -- 上一輪已打完 (場地已清空) 時先離開，讓同一個伺服器可以再次召喚
+        -- Previous round finished (arena cleared): leave first so this server can summon again
         if arena and arena:GetAttribute("ArenaState") == "Cleared" then
             if not state.Leave(active) then return false end
         else
@@ -2856,7 +3673,7 @@ function Halloween.PumpkinBoss.Round(active)
                     function() return arena:GetAttribute("ArenaState") == "Cleared" end, false, true)
                 Halloween.Target, Halloween.FloorY = nil, nil
             else
-                -- 場地未清空卻找不到 BOSS (卡 bug / Boss 消失)，持續 8 秒後自動退出
+                -- Arena not cleared but no boss found (bug / boss vanished): leave automatically after 8 seconds
                 bossMissingAt = bossMissingAt or tick()
                 if tick() - bossMissingAt >= 8 then
                     Halloween.Target, Halloween.FloorY = nil, nil
@@ -2872,15 +3689,15 @@ end
 function Halloween.PumpkinBoss.Run()
     local state = Halloween.PumpkinBoss
     if not _G.AutoPumpkinBoss or state.Busy or Halloween.Knocking or Halloween.BossEntered or HopPending then return end
-    -- 整點活動期間不搶占，待 XX:00~XX:10 結束後重新判斷
+    -- Do not take over during the hourly event; re-check after XX:00~XX:10 ends
     if Halloween.EventOwns() then return end
     if not Halloween.BossGate() then return end
     local sched = Halloween.Scheduler
     if tick() < state.NextCheck then return end
-    -- 召喚材料足夠：通知南瓜刷取讓出執行權，等它停下後再召喚 (優先 BOSS)
+    -- Enough summon materials: tell pumpkin farming to yield, wait for it to stop, then summon (boss has priority)
     if not sched.BossPending then
         sched.BossPending = true
-        -- 中止南瓜刷取正在進行的移動，讓 BOSS 流程能立即接手
+        -- Cancel pumpkin farming movement so the boss flow can take over immediately
         StopTween()
         ReleaseHover()
         Halloween.PumpkinTarget = nil
@@ -2899,7 +3716,7 @@ function Halloween.PumpkinBoss.Run()
     Halloween.Target, Halloween.FloorY = nil, nil
     state.Busy = false
     state.StatusCache, state.StatusAt = nil, 0
-    -- BOSS 完成後恢復：解除搶占，南瓜刷取重新判斷時間 / 伺服器狀態 / 自動換服元件
+    -- Resume after the boss: release the takeover so pumpkin farming re-evaluates timing / server state / auto hop
     sched.BossPending = false
     Halloween.RareHoldUntil, Halloween.RareMissingAt = 0, nil
     if not ok then warn("[Pumpkin Boss] " .. tostring(err)) end
@@ -2927,7 +3744,7 @@ task.spawn(function()
 end)
 
 ----------------------------------------
--- 選擇陣營
+-- Team selection
 ----------------------------------------
 local function SelectTeam()
     if not LocalPlayer.Team or LocalPlayer.Team.Name ~= _G.SelectTeam then
@@ -2953,7 +3770,7 @@ task.spawn(function()
     end
 end)
 
---超低配模式
+-- Ultra-low graphics mode
 local function LowCpu()
     local decalsyeeted = true
     local g = game
@@ -2998,7 +3815,7 @@ if _G.LowCpuMode then
     pcall(LowCpu)
 end
 
--- 自動執行
+-- Auto execute
 local queue_on_teleport = GetQueueOnTeleport()
 if _G.AutoExecute and queue_on_teleport then
     queue_on_teleport(ScriptLoadstring)
@@ -3034,20 +3851,184 @@ if _G.AntiAFK_ENABLED then
     EnableAntiAFK()
 end
 
+----------------------------------------
+-- Status panel (server time + event countdown HUD)
+----------------------------------------
+local StatusGui = nil
+local StatusTitle, StatusLine1, StatusLine2 = nil, nil, nil
+local StatusDragging, StatusDragOffset = false, nil
+
+local function Status_FormatClock(secondsOfDay)
+    secondsOfDay = math.floor(secondsOfDay) % 86400
+    local h = math.floor(secondsOfDay / 3600)
+    local m = math.floor(secondsOfDay / 60) % 60
+    local s = secondsOfDay % 60
+    return string.format("%02d:%02d:%02d", h, m, s)
+end
+
+local function Status_FormatCountdown(seconds)
+    seconds = math.max(0, math.floor(seconds))
+    return string.format("%02d:%02d", math.floor(seconds / 60), seconds % 60)
+end
+
+local function Status_Build()
+    if StatusGui then return end
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "AutoEventStatus"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    local ok = pcall(function() gui.Parent = game:GetService("CoreGui") end)
+    if not ok then
+        gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+
+    local frame = Instance.new("Frame")
+    frame.Name = "StatusFrame"
+    frame.Size = UDim2.new(0, 240, 0, 64)
+    frame.Position = UDim2.new(1, -252, 0, 12)
+    frame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+    frame.BackgroundTransparency = 0.25
+    frame.BorderSizePixel = 0
+    frame.Parent = gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(120, 90, 200)
+    stroke.Thickness = 1
+    stroke.Transparency = 0.4
+    stroke.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(1, -12, 0, 20)
+    title.Position = UDim2.new(0, 6, 0, 4)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.TextColor3 = Color3.fromRGB(235, 235, 245)
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Text = L("Status")
+    title.Parent = frame
+
+    local line1 = Instance.new("TextLabel")
+    line1.Name = "ServerTime"
+    line1.Size = UDim2.new(1, -12, 0, 16)
+    line1.Position = UDim2.new(0, 6, 0, 26)
+    line1.BackgroundTransparency = 1
+    line1.Font = Enum.Font.Gotham
+    line1.TextSize = 13
+    line1.TextColor3 = Color3.fromRGB(190, 200, 220)
+    line1.TextXAlignment = Enum.TextXAlignment.Left
+    line1.Text = L("Server Time: ") .. "--:--:--"
+    line1.Parent = frame
+
+    local line2 = Instance.new("TextLabel")
+    line2.Name = "Countdown"
+    line2.Size = UDim2.new(1, -12, 0, 16)
+    line2.Position = UDim2.new(0, 6, 0, 44)
+    line2.BackgroundTransparency = 1
+    line2.Font = Enum.Font.Gotham
+    line2.TextSize = 13
+    line2.TextColor3 = Color3.fromRGB(150, 230, 170)
+    line2.TextXAlignment = Enum.TextXAlignment.Left
+    line2.Text = L("Next event in ") .. "--:--"
+    line2.Parent = frame
+
+    -- Draggable (grab anywhere on the panel)
+    local function dragStart(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        StatusDragging = true
+        StatusDragOffset = frame.AbsolutePosition - Vector2.new(input.Position.X, input.Position.Y)
+    end
+    frame.InputBegan:Connect(dragStart)
+    title.InputBegan:Connect(dragStart)
+    line1.InputBegan:Connect(dragStart)
+    line2.InputBegan:Connect(dragStart)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if not StatusDragging then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement
+            and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        local pos = Vector2.new(input.Position.X, input.Position.Y) + StatusDragOffset
+        frame.Position = UDim2.new(0, math.clamp(pos.X, 0, math.max(0, gui.AbsoluteSize.X - frame.AbsoluteSize.X)),
+            0, math.clamp(pos.Y, 0, math.max(0, gui.AbsoluteSize.Y - frame.AbsoluteSize.Y)))
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+            or input.UserInputType == Enum.UserInputType.Touch then
+            StatusDragging = false
+        end
+    end)
+
+    StatusGui = gui
+    StatusTitle, StatusLine1, StatusLine2 = title, line1, line2
+end
+
+local function Status_Update()
+    if not StatusGui or not StatusGui.Parent then return end
+    local now = Workspace:GetServerTimeNow()
+    local intoHour = now % 3600
+    local remaining
+    if intoHour < 600 then
+        remaining = L("Event live: ends in ") .. Status_FormatCountdown(600 - intoHour)
+    else
+        remaining = L("Next event in ") .. Status_FormatCountdown(3600 - intoHour)
+    end
+    pcall(function()
+        StatusTitle.Text = L("Status")
+        StatusLine1.Text = L("Server Time: ") .. Status_FormatClock(now % 86400)
+        StatusLine2.Text = remaining
+    end)
+end
+
+function ApplyStatusPanel()
+    if not _G.StatusPanel then
+        if StatusGui then
+            StatusGui:Destroy()
+            StatusGui, StatusTitle, StatusLine1, StatusLine2 = nil, nil, nil, nil
+        end
+        return
+    end
+    Status_Build()
+    Status_Update()
+end
+
+task.spawn(function()
+    while true do
+        if _G.StatusPanel then
+            pcall(Status_Update)
+        end
+        task.wait(0.5)
+    end
+end)
+
+pcall(ApplyStatusPanel)
+
+function DestroyStatusPanel()
+    if StatusGui then
+        pcall(function() StatusGui:Destroy() end)
+        StatusGui, StatusTitle, StatusLine1, StatusLine2 = nil, nil, nil, nil
+    end
+end
 
 --------------------------
--- UI 分頁與元件
+-- UI tabs and elements
 --------------------------
 local Tabs = {
-    Auto      = Window:Tab({ Title = L("萬聖節活動"), Icon = "ghost" }),
-    Config    = Window:Tab({ Title = L("配置"), Icon = "wrench" }),
-    Settings  = Window:Tab({ Title = L("設定"),   Icon = "settings" })
+    Auto      = Window:Tab({ Title = "Auto Event", Icon = "ghost" }),
+    Config    = Window:Tab({ Title = L("Config"), Icon = "wrench" }),
+    WebHook   = Window:Tab({ Title = L("WebHook"), Icon = "mail" }),
+    Settings  = Window:Tab({ Title = L("Settings"),   Icon = "settings" })
 }
 
-Tabs.Auto:Section({ Title = L("萬聖節") })
+Tabs.Auto:Section({ Title = L("Halloween") })
 
 Tabs.Auto:Toggle({
-    Title = L("自動整點活動"),
+    Title = L("Auto Hourly Event"),
     Desc = "XX:00~XX:10",
     Value = _G.HalloweenAuto,
     Callback = function(state)
@@ -3060,7 +4041,7 @@ Tabs.Auto:Toggle({
 })
 
 Tabs.Auto:Toggle({
-    Title = L("萬聖節扭蛋"),
+    Title = L("Halloween Gacha"),
     Value = _G.AutoHalloweenGacha,
     Callback = function(state)
         _G.AutoHalloweenGacha = state
@@ -3071,17 +4052,29 @@ Tabs.Auto:Toggle({
 })
 
 Tabs.Auto:Toggle({
-    Title = L("自動存果實"),
+    Title = L("Auto Close Gacha UI"),
+    Desc = L("Closes the gacha result window after each pull"),
+    Value = _G.AutoCloseGacha,
+    Callback = function(state)
+        _G.AutoCloseGacha = state
+        if state then
+            pcall(Halloween.CloseGachaUI)
+        end
+    end
+})
+
+Tabs.Auto:Toggle({
+    Title = L("Auto Store Fruit"),
     Value = _G.AutoStoreFruit,
     Callback = function(v)
         _G.AutoStoreFruit = v
     end
 })
 
-Tabs.Auto:Section({ Title = L("南瓜") })
+Tabs.Auto:Section({ Title = L("Pumpkin") })
 
 Tabs.Auto:Toggle({
-    Title = L("自動刷南瓜（普通＋稀有）"),
+    Title = L("Auto Farm Pumpkin (Normal + Rare)"),
     Value = _G.AutoPumpkin,
     Callback = function(state)
         _G.AutoPumpkin = state
@@ -3093,7 +4086,7 @@ Tabs.Auto:Toggle({
 })
 
 Tabs.Auto:Toggle({
-    Title = L("自動刷稀有南瓜（僅稀有）"),
+    Title = L("Auto Farm Rare Pumpkin (Rare Only)"),
     Value = _G.AutoRarePumpkin,
     Callback = function(state)
         _G.AutoRarePumpkin = state
@@ -3107,7 +4100,7 @@ Tabs.Auto:Toggle({
 })
 
 Tabs.Auto:Toggle({
-    Title = L("找不到稀有南瓜自動跳服"),
+    Title = L("Auto Server Hop If No Rare Pumpkin"),
     Value = _G.AutoRarePumpkinHop,
     Callback = function(state)
         _G.AutoRarePumpkinHop = state
@@ -3117,7 +4110,7 @@ Tabs.Auto:Toggle({
 })
 
 Tabs.Auto:Toggle({
-    Title = L("自動召喚並擊殺南瓜 Boss"),
+    Title = L("Auto Summon and Kill Pumpkin Boss"),
     Value = _G.AutoPumpkinBoss,
     Callback = function(state)
         _G.AutoPumpkinBoss = state
@@ -3126,35 +4119,36 @@ Tabs.Auto:Toggle({
     end
 })
 
-Tabs.Config:Section({ Title = L("配置") })
+Tabs.Config:Section({ Title = L("Config") })
 
 Tabs.Config:Dropdown({
-    Title = L("選擇陣營"),
-    Values = { "海賊", "海軍" },
-    Value = _G.SelectTeam == "Pirates" and "海賊" or "海軍",
+    Title = L("Select Team"),
+    Values = { "Pirates", "Marines" },
+    Value = _G.SelectTeam == "Marines" and "Marines" or "Pirates",
     Callback = function(v)
-        _G.SelectTeam = v == "海賊" and "Pirates" or "Marines"
+        _G.SelectTeam = (v == "Marines") and "Marines" or "Pirates"
         SelectTeam()
     end,
 })
 
 Tabs.Config:Dropdown({
-    Title = L("選擇武器"),
-    Values = { "近戰", "劍", "槍械", "惡魔果實" },
-    Value = ({ Melee = "近戰", Sword = "劍", Gun = "槍械", ["Blox Fruit"] = "惡魔果實" })[_G.ChooseWP] or "近戰",
+    Title = L("Select Weapon"),
+    Values = { "Melee", "Sword", "Gun", "Blox Fruit" },
+    Value = ({ Melee = "Melee", Sword = "Sword", Gun = "Gun", ["Blox Fruit"] = "Blox Fruit" })[_G.ChooseWP] or "Melee",
     Callback = function(v)
         v = type(v) == "table" and v[1] or v
-        _G.ChooseWP = ({ ["近戰"] = "Melee", ["劍"] = "Sword", ["槍械"] = "Gun", ["惡魔果實"] = "Blox Fruit" })[v] or "Melee"
+        _G.ChooseWP = ({ Melee = "Melee", Sword = "Sword", Gun = "Gun", ["Blox Fruit"] = "Blox Fruit" })[v] or "Melee"
         SyncSelectWeapon()
     end,
 })
 
 Tabs.Config:Toggle({
-    Title    = L("自動攻擊"),
-    Value    = _G.FastAttack,
+    Title    = L("Flagged M1"),
+    Desc     = L("Flagged hit bypass (replaces Fast Attack)"),
+    Value    = _G.FlaggedM1,
     Callback = function(v)
-        _G.FastAttack = v
-        if _G.FastAttack then
+        _G.FlaggedM1 = v
+        if _G.FlaggedM1 then
             stopManual()
         else
             startManual()
@@ -3163,7 +4157,32 @@ Tabs.Config:Toggle({
 })
 
 Tabs.Config:Toggle({
-    Title    = L("自動武裝色"),
+    Title    = L("Double M1 (Fruit + Sword)"),
+    Desc     = L("Fires the fruit M1 with every sword M1"),
+    Value    = _G.DoubleM1,
+    Callback = function(v)
+        _G.DoubleM1 = v
+        if v and not _G.FlaggedM1 then
+            _G.FlaggedM1 = true
+            WindUI:Notify({ Title = L("Double M1 (Fruit + Sword)"), Content = L("Enabled"), Duration = 3 })
+        end
+    end
+})
+
+Tabs.Config:Toggle({
+    Title    = L("Dragonstorm Aura (Gun)"),
+    Desc     = L("Shoot with the Dragonstorm gun instead of melee M1"),
+    Value    = _G.DragonstormAura,
+    Callback = function(v)
+        _G.DragonstormAura = v
+        if v and type(Dragon_Owned) == "function" and not Dragon_Owned() then
+            WindUI:Notify({ Title = L("Dragonstorm Aura (Gun)"), Content = L("Dragonstorm gun not found in your inventory"), Duration = 4 })
+        end
+    end
+})
+
+Tabs.Config:Toggle({
+    Title    = L("Auto Buso"),
     Value    = _G.AutoBusoEnabled,
     Callback = function(v)
         _G.AutoBusoEnabled = v
@@ -3171,7 +4190,7 @@ Tabs.Config:Toggle({
 })
 
 Tabs.Config:Toggle({
-    Title = L("自動見聞色"),
+    Title = L("Auto Observation Haki"),
     Value = _G.AutoKenSilent,
     Callback = function(v)
         _G.AutoKenSilent = v
@@ -3179,26 +4198,108 @@ Tabs.Config:Toggle({
 })
 
 Tabs.Config:Toggle({
-    Title = L("聚怪"),
+    Title = L("Bring Mobs"),
     Value = _G.BringMobs,
     Callback = function(v)
         if v then StartBringMobs() else StopBringMobs() end
     end
 })
 
-Tabs.Settings:Section({ Title = L("語言") })
+Tabs.WebHook:Section({ Title = L("WebHook") })
+
+Tabs.WebHook:Input({
+    Title = L("Webhook URL"),
+    Value = _G.WebhookUrl,
+    Placeholder = "https://discord.com/api/webhooks/...",
+    Callback = function(text)
+        _G.WebhookUrl = tostring(text or "")
+    end,
+})
+
+Tabs.WebHook:Toggle({
+    Title = "Ping",
+    Desc = L("Ping @everyone or a user ID"),
+    Value = _G.WebhookPing,
+    Callback = function(v)
+        _G.WebhookPing = v
+    end,
+})
+
+Tabs.WebHook:Input({
+    Title = L("Ping User ID"),
+    Value = tostring(_G.WebhookPingId or ""),
+    Placeholder = L("User ID (empty = @everyone)"),
+    Callback = function(text)
+        _G.WebhookPingId = tostring(text or "")
+    end,
+})
+
+Tabs.WebHook:Dropdown({
+    Title = L("Select Rarities"),
+    Values = { "Mythical", "Legendary", "rare", "uncommon", "common" },
+    Value = _G.PingRarities,
+    Multi = true,
+    AllowNone = true,
+    Callback = function(selected)
+        if type(selected) == "string" then selected = { selected } end
+        local normalized = {}
+        for _, rarity in ipairs(selected or {}) do
+            local norm = Webhook.NormalizeRarity(rarity)
+            if norm then normalized[#normalized + 1] = norm end
+        end
+        _G.PingRarities = normalized
+        if #normalized == 0 then
+            WindUI:Notify({
+                Title = L("Select Rarities"),
+                Content = L("No rarity selected, no pings will be sent"),
+                Duration = 5,
+            })
+        end
+    end,
+})
+
+Tabs.WebHook:Section({ Title = L("Notifications") })
+
+Tabs.WebHook:Toggle({
+    Title = L("Event Start/End Webhook"),
+    Desc = L("Sends a webhook when the event starts and ends"),
+    Value = _G.WebhookEvent,
+    Callback = function(v)
+        _G.WebhookEvent = v
+    end,
+})
+
+Tabs.WebHook:Toggle({
+    Title = L("Boss Spawn, Kill and Drops Webhook"),
+    Desc = L("Sends a webhook on boss spawn, kill and drops"),
+    Value = _G.WebhookBoss,
+    Callback = function(v)
+        _G.WebhookBoss = v
+    end,
+})
+
+Tabs.WebHook:Toggle({
+    Title = L("Gacha Roll Webhook"),
+    Desc = L("Sends a webhook with every gacha roll"),
+    Value = _G.WebhookGacha,
+    Callback = function(v)
+        _G.WebhookGacha = v
+    end,
+})
+
+Tabs.Settings:Section({ Title = L("Language") })
 
 Tabs.Settings:Dropdown({
-    Title = L("語言"),
-    Values = { "中文", "English" },
+    Title = L("Language"),
+    Values = { "English", "French" },
     Value = _G.Language,
     Callback = function(value)
         _G.Language = value
         task.defer(TranslationState.RefreshVisibleLanguage)
         task.delay(0.3, TranslationState.RefreshVisibleLanguage)
         task.delay(1, TranslationState.RefreshVisibleLanguage)
-        WindUI:Notify({ Title = L("語言"), Content = _G.Language == "English" and L("語言已切換為: English") or L("語言已切換為: 中文"), Duration = 3 })
-        if _G.Language == "English" then
+        WindUI:Notify({ Title = L("Language"), Content = _G.Language == "French" and L("Language switched to French") or L("Language switched to English"), Duration = 3 })
+        if _G.Language == "French" then
             TranslationState.StartWatch()
         end
     end
@@ -3215,7 +4316,7 @@ Window:CreateTopbarButton("Translation", "languages", function()
             if root then
                 for _, item in ipairs(root:GetDescendants()) do
                     if (item:IsA("TextButton") or item:IsA("TextLabel"))
-                        and (item.Text == "語言" or item.Text == "Language") then
+                        and (item.Text == "Language" or item.Text == "Langue") then
                         local node = item
                         for _ = 1, 4 do
                             if not node or not node.Parent then break end
@@ -3232,12 +4333,24 @@ Window:CreateTopbarButton("Translation", "languages", function()
     end)
 end, 1)
 
-Tabs.Settings:Section({ Title = L("重置腳本") })
+Tabs.Settings:Section({ Title = L("Status") })
+
+Tabs.Settings:Toggle({
+    Title = L("Status Panel"),
+    Desc = L("Server time and countdown to the next event"),
+    Value = _G.StatusPanel,
+    Callback = function(v)
+        _G.StatusPanel = v
+        if type(ApplyStatusPanel) == "function" then ApplyStatusPanel() end
+    end
+})
+
+Tabs.Settings:Section({ Title = L("Reset Script") })
 
 Tabs.Settings:Button({
-    Title = L("將所有配置恢復初始"),
+    Title = L("Restore All Settings To Default"),
     Icon = "trash-2",
-    Desc = L("標記為待重置 下次啟動腳本時改為初始設定"),
+    Desc = L("Marked for reset. Default settings will apply on the next script start."),
     Callback = function()
         local ok = pcall(function()
             if typeof(isfolder) == "function" and typeof(makefolder) == "function" and not isfolder(ConfigFolder) then
@@ -3250,24 +4363,24 @@ Tabs.Settings:Button({
         
         if ok then
             WindUI:Notify({
-                Title = L("配置等待重置"),
-                Content = L("下次啟動腳本後將完全生效 當前功能不受影響"),
+                Title = L("Config Reset Pending"),
+                Content = L("Changes will take full effect the next time the script starts. Current features will not be affected."),
                 Duration = 4
             })
         else
             WindUI:Notify({
-                Title = L("重置失敗"),
-                Content = L("無法儲存設定檔 請確認執行器是否支援檔案寫入"),
+                Title = L("Reset Failed"),
+                Content = L("Unable to save the config file. Check whether your executor supports file writing."),
                 Duration = 4
             })
         end
     end
 })
 
-Tabs.Settings:Section({ Title = L("設定") })
+Tabs.Settings:Section({ Title = L("Settings") })
 
 Tabs.Settings:Toggle({
-    Title = L("超低配模式"),
+    Title = L("Ultra-Low Graphics Mode"),
     Value = _G.LowCpuMode,
     Callback = function(v)
         _G.LowCpuMode = v
@@ -3278,7 +4391,7 @@ Tabs.Settings:Toggle({
 })
 
 Tabs.Settings:Toggle({ 
-    Title = L("換服後自動執行"),
+    Title = L("Auto-Execute After Hop"),
     Value = _G.AutoExecute,
     Callback = function(v)
         _G.AutoExecute = v
@@ -3290,14 +4403,14 @@ Tabs.Settings:Toggle({
                 end
                 GetQueueOnTeleport()(ScriptLoadstring)
                 WindUI:Notify({
-                    Title = L("通知"),
-                    Content = L("已開啟自動執行"),
+                    Title = L("Notifications"),
+                    Content = L("Auto-execution enabled"),
                     Duration = 3
                 })
             else
                 WindUI:Notify({
-                    Title = L("支援錯誤"),
-                    Content = L("你目前的注入器不支援"),
+                    Title = L("Unsupported Executor"),
+                    Content = L("Your current executor is not supported"),
                     Duration = 3
                 })
             end
@@ -3306,8 +4419,8 @@ Tabs.Settings:Toggle({
                 delfile("AutoEvent.file")
             end
             WindUI:Notify({
-                Title = L("通知"),
-                Content = L("已關閉自動執行"),
+                Title = L("Notifications"),
+                Content = L("Auto-execution disabled"),
                 Duration = 3
             })
         end
@@ -3316,7 +4429,7 @@ Tabs.Settings:Toggle({
 
 Tabs.Settings:Toggle({ 
     Title    = "Anti AFK", 
-    Desc     = L("防止閒置被踢出"), 
+    Desc     = L("Prevents being kicked for being idle"),
     Value    = _G.AntiAFK_ENABLED,
     Callback = function(v) 
         _G.AntiAFK_ENABLED = v
@@ -3329,8 +4442,8 @@ Tabs.Settings:Toggle({
 })
 
 Tabs.Settings:Keybind({ 
-    Title = L("快捷鍵"), 
-    Desc = L("可更改"), 
+    Title = L("Hotkey"),
+    Desc = L("Changeable"),
     Value = _G.CurrentKey,
     Callback = function(v)
         _G.CurrentKey = v
@@ -3342,8 +4455,8 @@ Tabs.Settings:Keybind({
 })
 
 Tabs.Settings:Toggle({
-    Title = L("停用快捷鍵"),
-    Desc = L("開啟後將禁用快捷鍵"),
+    Title = L("Disable Hotkey"),
+    Desc = L("Disables the hotkey when enabled"),
     Value = _G.KeyDisabled,
     Callback = function(state)
         _G.KeyDisabled = state
@@ -3356,7 +4469,7 @@ Tabs.Settings:Toggle({
     end
 })
 
--- 初始化狀態
+-- Initialize state
 task.spawn(function()
     task.wait()
 
@@ -3374,7 +4487,7 @@ task.spawn(function()
     end
 end)
 
--- 依存檔配置啟動各元件 (等同手動開啟開關)
+-- Start components from the saved config (same as toggling them on manually)
 if _G.AutoHalloweenGacha then
     task.spawn(Halloween.PullGacha)
 end
@@ -3394,7 +4507,7 @@ if _G.AutoRarePumpkin then
     Halloween.RareHoldUntil, Halloween.RareMissingAt = 0, nil
 end
 
-if _G.FastAttack then
+if _G.FlaggedM1 then
     stopManual()
 else
     startManual()
@@ -3404,7 +4517,9 @@ if _G.BringMobs then
     StartBringMobs()
 end
 
-if _G.Language == "English" then
+if _G.Language == "French" then
     task.defer(TranslationState.RefreshVisibleLanguage)
     TranslationState.StartWatch()
+else
+    task.defer(TranslationState.RefreshVisibleLanguage)
 end
